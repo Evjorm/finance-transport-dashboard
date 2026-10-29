@@ -3,6 +3,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>金融交通项目看板</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&amp;family=Noto+Serif+SC:wght@600;700&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- Supabase 后端 SDK（UMD 格式，window.supabase） -->
@@ -455,7 +456,7 @@ body {
     <button class="btn btn-sm" onclick="exportData()" title="导出为 Excel 项目台账">📤 导出 Excel</button>
     <button class="btn btn-sm" onclick="document.getElementById('importFile').click()" title="从 Excel 项目台账导入">📥 导入 Excel</button>
     <input type="file" id="importFile" accept=".xlsx,.xls,.json" style="display:none" onchange="importData(event)">
-    <button class="btn btn-primary" onclick="openModal()">新增项目</button>
+    <button class="btn btn-primary" id="btnAddProject" onclick="openModal()">新增项目</button>
   </div>
 </div>
 
@@ -1656,6 +1657,14 @@ function initSupabase() {
 function sbEnabled() { return !!_sb; }
 // 编辑口令：未设置时云端写操作自动跳过（只读模式）
 function getEditCode() { return localStorage.getItem(SB_EDIT_CODE_STORE) || ''; }
+// 是否有云端写权限（同时连了后端 + 有编辑口令）
+function canWrite() { return sbEnabled() && !!getEditCode(); }
+// 只读拦截：无权限统一 toast 并 return；UI 层也会隐藏编辑入口，这里是最后兜底
+function requireWrite(fnName) {
+  if (canWrite()) return true;
+  showToast('只读模式，需在「🔌 后端」输入编辑口令才能' + (fnName || '编辑'));
+  return false;
+}
 
 // === Supabase ↔ 前端数据转换 ===
 // 前端 project.stages 对象 → 数据库多列
@@ -2012,6 +2021,7 @@ function isWeeklySubmitted(proj, stageKey) {
 }
 // 保存某阶段本周进度
 function saveWeeklyProgress(pid, stageKey, percent, note) {
+  if (!requireWrite('录入每周进度')) return;
   const proj = projects.find(p => p.id === pid);
   if (!proj) return;
   if (!proj.stages[stageKey].weeklyProgress) proj.stages[stageKey].weeklyProgress = [];
@@ -2304,6 +2314,7 @@ function renderDetail(id) {
   currentDetailId = id;
   const proj = projects.find(p => p.id === id);
   if (!proj) { backToDashboard(); return; }
+  const cw = canWrite();
   const statusMap = { done: '已完成', progress: '进行中', pending: '待启动', terminated: '已终止' };
   const stageDotColor = { done: 'var(--status-done)', progress: 'var(--status-progress)', pending: 'var(--status-pending)', terminated: 'var(--status-terminated)' };
   const timeline = STAGE_CONFIG.map(stage => {
@@ -2344,11 +2355,13 @@ function renderDetail(id) {
           <div class="milestone-right"><span class="milestone-date">${esc(ms.date || '—')}</span>${daysStr}</div>
         </div>`;
     }).join('');
-    // 快捷操作按钮
+    // 快捷操作按钮（只读模式下隐藏，替换为提示文字）
     let actionBtns = '';
     const pid = proj.id, sk = stage.key;
     if (status === 'terminated') {
       actionBtns = `<span class="stage-action-hint">此阶段已终止（投标未中标）</span>`;
+    } else if (!cw) {
+      actionBtns = `<span class="stage-action-hint" style="color:var(--text-muted);font-size:12px;">🔒 只读模式：输入编辑口令后可修改阶段状态</span>`;
     } else if (status === 'done') {
       actionBtns = `<button class="btn btn-sm stage-action-btn" onclick="revertStage('${pid}','${sk}')">回退至进行中</button>`;
     } else if (status === 'pending') {
@@ -2422,6 +2435,14 @@ function renderDetail(id) {
           <span class="ph-percent">${r.percent}%</span>
           <span class="ph-note" title="${esc(r.note || '')}">${esc(r.note || '')}</span>
         </div>`).join('');
+      // 只读模式下去掉输入框和保存按钮，只留展示
+      const inputRow = cw ? `
+        <div class="progress-input-row">
+          <input type="number" min="0" max="100" id="progPct_${pid}_${sk}" value="${latest}" placeholder="进度 %">
+          <input type="text" id="progNote_${pid}_${sk}" placeholder="本周进展简述（可选）" style="flex:1">
+          <button class="btn btn-sm" onclick="saveWeeklyProgress('${pid}','${sk}', document.getElementById('progPct_${pid}_${sk}').value, document.getElementById('progNote_${pid}_${sk}').value)">保存本周</button>
+        </div>` : `
+        <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">🔒 只读模式：输入编辑口令后可录入本周进度</div>`;
       progressBlock = `
       <div class="progress-block">
         <div class="progress-block-title">📈 每周进度${submitted ? '<span class="weekly-badge">本周已提交 ✓</span>' : '<span class="weekly-badge" style="background:var(--alert-upcoming)">本周待更新</span>'}</div>
@@ -2429,11 +2450,7 @@ function renderDetail(id) {
           <div class="progress-bar"><div class="progress-bar-fill" style="width:${latest}%"></div></div>
           <span class="progress-bar-text">${latest}%</span>
         </div>
-        <div class="progress-input-row">
-          <input type="number" min="0" max="100" id="progPct_${pid}_${sk}" value="${latest}" placeholder="进度 %">
-          <input type="text" id="progNote_${pid}_${sk}" placeholder="本周进展简述（可选）" style="flex:1">
-          <button class="btn btn-sm" onclick="saveWeeklyProgress('${pid}','${sk}', document.getElementById('progPct_${pid}_${sk}').value, document.getElementById('progNote_${pid}_${sk}').value)">保存本周</button>
-        </div>
+        ${inputRow}
         ${historyHtml ? `<div class="progress-history">${historyHtml}</div>` : ''}
       </div>`;
     }
@@ -2461,8 +2478,8 @@ function renderDetail(id) {
         <p>${esc(proj.description)}</p>
       </div>
       <div class="detail-actions">
-        <button class="btn btn-sm" onclick="openModal('${proj.id}')">编辑</button>
-        <button class="btn btn-danger btn-sm" onclick="confirmDelete('${proj.id}')">删除</button>
+        ${cw ? `<button class="btn btn-sm" onclick="openModal('${proj.id}')">编辑</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelete('${proj.id}')">删除</button>` : '<span style="font-size:11px;color:var(--text-muted);align-self:center;">🔒 只读模式</span>'}
       </div>
     </div>
     <div class="detail-persons">
@@ -2498,6 +2515,7 @@ function backToDashboard() {
 
 // ===== 阶段快捷更新 =====
 function quickUpdate(pid, stageKey, field, value) {
+  if (!requireWrite('阶段快捷更新')) return;
   const proj = projects.find(p => p.id === pid);
   if (!proj) return;
   if (!proj.stages) proj.stages = {};
@@ -2511,18 +2529,21 @@ function quickUpdate(pid, stageKey, field, value) {
   saveData(); renderDetail(pid); showToast('已更新');
 }
 function markStageDone(pid, stageKey) {
+  if (!requireWrite('标记阶段完成')) return;
   const proj = projects.find(p => p.id === pid);
   if (!proj?.stages?.[stageKey]) return;
   proj.stages[stageKey].completed = true;
   saveData(); renderDetail(pid); showToast('已标记完成');
 }
 function markStageProgress(pid, stageKey) {
+  if (!requireWrite('启动阶段')) return;
   const proj = projects.find(p => p.id === pid);
   if (!proj?.stages?.[stageKey]) return;
   proj.stages[stageKey].started = true;
   saveData(); renderDetail(pid); showToast('已启动');
 }
 function markStagePending(pid, stageKey) {
+  if (!requireWrite('回退阶段')) return;
   const proj = projects.find(p => p.id === pid);
   if (!proj?.stages?.[stageKey]) return;
   proj.stages[stageKey].started = false;
@@ -2530,6 +2551,7 @@ function markStagePending(pid, stageKey) {
   saveData(); renderDetail(pid); showToast('已回退至待启动');
 }
 function revertStage(pid, stageKey) {
+  if (!requireWrite('回退阶段')) return;
   const proj = projects.find(p => p.id === pid);
   if (!proj?.stages?.[stageKey]) return;
   proj.stages[stageKey].completed = false;
@@ -2538,6 +2560,7 @@ function revertStage(pid, stageKey) {
 
 // ===== 弹窗 =====
 function openModal(id) {
+  if (!requireWrite(id ? '编辑项目' : '新增项目')) return;
   editingId = id || null;
   const proj = id ? projects.find(p => p.id === id) : null;
   document.getElementById('modalTitle').textContent = id ? '编辑项目' : '新增项目';
@@ -2594,6 +2617,7 @@ function openModal(id) {
 }
 function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); editingId = null; }
 function saveProject() {
+  if (!requireWrite('保存项目')) return;
   const name = document.getElementById('f_name').value.trim();
   if (!name) { showToast('请输入项目名称'); return; }
   const bidResult = document.getElementById('f_bidResult').value;
@@ -2629,6 +2653,7 @@ function saveProject() {
 function confirmDelete(id) { deleteTargetId = id; document.getElementById('confirmOverlay').classList.add('active'); }
 function closeConfirm() { document.getElementById('confirmOverlay').classList.remove('active'); deleteTargetId = null; }
 function doDelete() {
+  if (!requireWrite('删除项目')) return;
   projects = projects.filter(p => p.id !== deleteTargetId);
   saveData(); closeConfirm(); backToDashboard(); showToast('项目已删除');
 }
@@ -2716,15 +2741,18 @@ function refreshBackendBadge() {
   const btn = document.getElementById('backendBtn');
   const statusEl = document.getElementById('backendStatus');
   const connected = sbEnabled();
-  const canWrite = connected && !!getEditCode();
-  if (btn) btn.textContent = connected ? (canWrite ? '🔌 后端 已连' : '🔌 后端 只读') : '🔌 后端';
+  const cw = canWrite();
+  if (btn) btn.textContent = connected ? (cw ? '🔌 后端 已连' : '🔌 后端 只读') : '🔌 后端';
   if (statusEl) {
     statusEl.innerHTML = connected
-      ? (canWrite
+      ? (cw
           ? '<span style="color:var(--accent-green);">● 已连接云端，可读写（多人协同）</span>'
           : '<span style="color:var(--accent-gold);">● 已连接云端，只读（未填编辑口令）</span>')
       : '<span style="color:var(--text-muted);">○ 未连接（仅本机 localStorage）</span>';
   }
+  // 统一控制首页"新增项目"按钮的可见性
+  const addBtn = document.getElementById('btnAddProject');
+  if (addBtn) addBtn.style.display = cw ? '' : 'none';
 }
 function openBackendModal() {
   document.getElementById('backendUrl').textContent = SUPABASE_CONFIG.url;
