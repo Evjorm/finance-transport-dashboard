@@ -441,14 +441,14 @@ body {
     <div class="topbar-logo">金</div>
     <div class="topbar-title">
       <h1>金融交通项目看板</h1>
-      <span id="systemDate">2026年10月28日 星期三</span>
+      <span id="systemDate">2026年10月29日 星期四</span>
     </div>
   </div>
   <div class="topbar-right">
-    <div class="topbar-date" id="topbarClock">15:43:38</div>
+    <div class="topbar-date" id="topbarClock">11:17:04</div>
     <div class="version-badge" title="版本标记，不可更改">v2.0 · <span class="vb-owner">金融交通事业部</span></div>
     <div class="save-indicator" id="saveIndicator">已保存</div>
-    <button class="btn btn-sm" onclick="openBackendModal()" id="backendBtn" title="配置云端后端，实现多人实时协同">🔌 后端</button>
+    <button class="btn btn-sm" onclick="openBackendModal()" id="backendBtn" title="配置云端后端，实现多人实时协同">🔌 后端 只读</button>
     <button class="btn btn-sm" onclick="openShareModal()">🔗 分享</button>
     <button class="btn btn-sm" onclick="openMaterialsHub()">📦 物料中心</button>
     <button class="btn btn-sm" onclick="importHeadProjects()" title="导入2026年头部签约项目（按合同号去重）">🏆 导入头部项目</button>
@@ -464,8 +464,8 @@ body {
   <div class="reminder-bar-inner">
     <div class="reminder-icon overdue" id="reminderIcon">⚠</div>
     <div class="reminder-content">
-      <h3 id="reminderTitle">3 项已逾期  ·  0 项紧急  ·  0 项即将到期</h3>
-      <div class="reminder-list" id="reminderList"><span class="reminder-tag overdue" onclick="openDetail('head_SNXCZ2600361EGN00')">高速公路联网收费系统业务支撑平台运维合同 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_SNXCZ2600404EGY00')">西安高铁东站智慧交通项目软件开发服务合同 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_SNXCZ2600405BGY00')">西安高铁东站智慧交通项目设备采购合同 - 交付资料准备已逾期</span></div>
+      <h3 id="reminderTitle">5 项已逾期  ·  0 项紧急  ·  0 项即将到期</h3>
+      <div class="reminder-list" id="reminderList"><span class="reminder-tag overdue" onclick="openDetail('head_HT20260202')">大模型平台建设 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_HT20260101')">西安高铁东站智慧交通软件开发 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_HT20260102')">西安高铁东站智慧交通设备采购 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_HT20260201')">省级视频云联网监测云网资源 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_HT20260301')">高速公路联网收费运维 - 交付资料准备已逾期</span></div>
     </div>
   </div>
 </div>
@@ -475,7 +475,7 @@ body {
   <div class="stat-card total"><span class="stat-label">项目总数</span><span class="stat-value" id="statTotal">6</span></div>
   <div class="stat-card urgent"><span class="stat-label">紧急（今日到期）</span><span class="stat-value" id="statUrgent">0</span></div>
   <div class="stat-card upcoming"><span class="stat-label">即将到期（3天内）</span><span class="stat-value" id="statUpcoming">0</span></div>
-  <div class="stat-card overdue"><span class="stat-label">已逾期</span><span class="stat-value" id="statOverdue">3</span></div>
+  <div class="stat-card overdue"><span class="stat-label">已逾期</span><span class="stat-value" id="statOverdue">5</span></div>
 </div>
 
 <!-- 阶段进展展示 -->
@@ -558,14 +558,162 @@ body {
 <!-- 看板视图 -->
 <div class="dashboard-view" id="dashboardView">
   <div class="project-grid" id="projectGrid" style="display: grid;">
-      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('sample_1')">
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_HT20260202')">
         <div class="card-header">
-          <div class="card-title">陕西省交通运输DBD智能车载终端替换项目</div>
-          <div class="card-desc">陕西省交通运输重点营运车辆DBD智能车载终端替换及技术服务项目，覆盖全省重点营运车辆北斗终端规模化替换。</div>
+          <div class="card-title">大模型平台建设</div>
+          <div class="card-desc">交通行业大模型训练与推理平台建设</div>
         </div>
         <div class="card-persons">
-          <span>👤 王明</span>
-          <span>👔 李华</span>
+          <span>👤 王芳</span>
+          <span>👔 张伟</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/03/01</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/04/15</span>
+            <span class="si-days overdue">逾期197天</span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">交付</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div>
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_HT20260101')">
+        <div class="card-header">
+          <div class="card-title">西安高铁东站智慧交通软件开发</div>
+          <div class="card-desc">西安高铁东站智慧交通平台软件开发与系统集成</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 张涛</span>
+          <span>👔 李明</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/01/20</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/03/10</span>
+            <span class="si-days overdue">逾期233天</span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">交付</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div>
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_HT20260102')">
+        <div class="card-header">
+          <div class="card-title">西安高铁东站智慧交通设备采购</div>
+          <div class="card-desc">西安高铁东站智慧交通相关硬件设备采购</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 张涛</span>
+          <span>👔 李明</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/01/20</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/03/10</span>
+            <span class="si-days overdue">逾期233天</span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">交付</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div>
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_HT20260201')">
+        <div class="card-header">
+          <div class="card-title">省级视频云联网监测云网资源</div>
+          <div class="card-desc">省级视频云联网监测平台云网资源建设</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 王芳</span>
+          <span>👔 张伟</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/02/25</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/04/01</span>
+            <span class="si-days overdue">逾期211天</span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">交付</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div>
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('_smoke')">
+        <div class="card-header">
+          <div class="card-title">test</div>
+          <div class="card-desc"></div>
+        </div>
+        <div class="card-persons">
+          <span>👤 未指派</span>
+          <span>👔 未指派</span>
         </div>
         <div class="stage-labels"><div class="stage-label active" data-stage="preSelection">标前遴选</div><div class="stage-label " data-stage="bidding">投标</div><div class="stage-label " data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
         <div class="stage-bar"><div class="stage-seg pending"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
@@ -583,19 +731,19 @@ body {
             <span class="si-label">下一阶段</span>
             <span class="si-name">投标</span>
             <span class="si-status pending">待启动</span>
-            <span class="si-date">2026/09/25</span>
+            <span class="si-date">—</span>
             <span class="si-days pending"></span>
           </div>
         </div>
       </div>
-      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_UEJCA2602094EGN00')">
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_HT20260301')">
         <div class="card-header">
-          <div class="card-title">大模型平台建设项目合同</div>
-          <div class="card-desc">陕西重型汽车有限公司 · 集团数智签约 · 合同额 ¥179.00万 · DICT ¥13.21万 · 期间 202606 · 合同号 UEJCA2602094EGN00</div>
+          <div class="card-title">高速公路联网收费运维</div>
+          <div class="card-desc">陕西省高速公路联网收费系统年度运维服务</div>
         </div>
         <div class="card-persons">
-          <span>👤 王雯</span>
-          <span>👔 金融行业事业部</span>
+          <span>👤 刘强</span>
+          <span>👔 赵军</span>
         </div>
         <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
         <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
@@ -605,163 +753,15 @@ body {
             <span class="si-label">上一阶段</span>
             <span class="si-name">投标</span>
             <span class="si-status done">已完成</span>
-            <span class="si-date">2026/02/01</span>
+            <span class="si-date">2026/03/15</span>
             <span class="si-days done">已完成</span>
           </div>
           <div class="stage-info-row done">
             <span class="si-label">当前阶段</span>
             <span class="si-name">签约</span>
             <span class="si-status done">已完成</span>
-            <span class="si-date">—</span>
-            <span class="si-days normal"></span>
-          </div>
-          
-          <div class="stage-info-row pending">
-            <span class="si-label">下一阶段</span>
-            <span class="si-name">交付</span>
-            <span class="si-status pending">待启动</span>
-            <span class="si-date">—</span>
-            <span class="si-days pending"></span>
-          </div>
-        </div>
-      </div>
-      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_SNXCZ2600361EGN00')">
-        <div class="card-header">
-          <div class="card-title">高速公路联网收费系统业务支撑平台运维合同</div>
-          <div class="card-desc">陕西省高速公路收费中心 · 项目审批中 · 合同额 ¥178.60万 · DICT ¥80.19万 · 期间 202606 · 合同号 SNXCZ2600361EGN00</div>
-        </div>
-        <div class="card-persons">
-          <span>👤 师雪健</span>
-          <span>👔 政务行业拓展部</span>
-        </div>
-        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
-        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
-        <div class="stage-info-block">
-          
-          <div class="stage-info-row done">
-            <span class="si-label">上一阶段</span>
-            <span class="si-name">投标</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">2026/02/01</span>
-            <span class="si-days done">已完成</span>
-          </div>
-          <div class="stage-info-row done">
-            <span class="si-label">当前阶段</span>
-            <span class="si-name">签约</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">2026/07/09</span>
-            <span class="si-days overdue">逾期111天</span>
-          </div>
-          
-          <div class="stage-info-row pending">
-            <span class="si-label">下一阶段</span>
-            <span class="si-name">交付</span>
-            <span class="si-status pending">待启动</span>
-            <span class="si-date">—</span>
-            <span class="si-days pending"></span>
-          </div>
-        </div>
-      </div>
-      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_UEJCA2602603EGN00')">
-        <div class="card-header">
-          <div class="card-title">2026年省级视频云联网监测系统公有云资源及传输网络租用</div>
-          <div class="card-desc">陕西省高速公路收费中心 · 集团数智签约(集团未统计到) · 合同额 ¥297.00万 · DICT ¥28.02万 · 期间 手工加 · 合同号 UEJCA2602603EGN00</div>
-        </div>
-        <div class="card-persons">
-          <span>👤 庞博</span>
-          <span>👔 未指派</span>
-        </div>
-        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
-        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
-        <div class="stage-info-block">
-          
-          <div class="stage-info-row done">
-            <span class="si-label">上一阶段</span>
-            <span class="si-name">投标</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">2026/02/01</span>
-            <span class="si-days done">已完成</span>
-          </div>
-          <div class="stage-info-row done">
-            <span class="si-label">当前阶段</span>
-            <span class="si-name">签约</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">—</span>
-            <span class="si-days normal"></span>
-          </div>
-          
-          <div class="stage-info-row pending">
-            <span class="si-label">下一阶段</span>
-            <span class="si-name">交付</span>
-            <span class="si-status pending">待启动</span>
-            <span class="si-date">—</span>
-            <span class="si-days pending"></span>
-          </div>
-        </div>
-      </div>
-      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_SNXCZ2600404EGY00')">
-        <div class="card-header">
-          <div class="card-title">西安高铁东站智慧交通项目软件开发服务合同</div>
-          <div class="card-desc">中徽建技术有限公司 · 头部项目 · 合同额 ¥4015.20万 · DICT ¥3199.59万 · 期间 202606 · 合同号 SNXCZ2600404EGY00</div>
-        </div>
-        <div class="card-persons">
-          <span>👤 王磊</span>
-          <span>👔 交通物流行业事业部</span>
-        </div>
-        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
-        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
-        <div class="stage-info-block">
-          
-          <div class="stage-info-row done">
-            <span class="si-label">上一阶段</span>
-            <span class="si-name">投标</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">2026/02/01</span>
-            <span class="si-days done">已完成</span>
-          </div>
-          <div class="stage-info-row done">
-            <span class="si-label">当前阶段</span>
-            <span class="si-name">签约</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">2026/07/31</span>
-            <span class="si-days overdue">逾期89天</span>
-          </div>
-          
-          <div class="stage-info-row pending">
-            <span class="si-label">下一阶段</span>
-            <span class="si-name">交付</span>
-            <span class="si-status pending">待启动</span>
-            <span class="si-date">—</span>
-            <span class="si-days pending"></span>
-          </div>
-        </div>
-      </div>
-      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_SNXCZ2600405BGY00')">
-        <div class="card-header">
-          <div class="card-title">西安高铁东站智慧交通项目设备采购合同</div>
-          <div class="card-desc">中徽建技术有限公司 · 头部项目·DICT收入为0（设备采购） · 合同额 ¥1049.45万 · 期间 202606 · 合同号 SNXCZ2600405BGY00</div>
-        </div>
-        <div class="card-persons">
-          <span>👤 王磊</span>
-          <span>👔 交通物流行业事业部</span>
-        </div>
-        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
-        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
-        <div class="stage-info-block">
-          
-          <div class="stage-info-row done">
-            <span class="si-label">上一阶段</span>
-            <span class="si-name">投标</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">2026/02/01</span>
-            <span class="si-days done">已完成</span>
-          </div>
-          <div class="stage-info-row done">
-            <span class="si-label">当前阶段</span>
-            <span class="si-name">签约</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">2026/07/31</span>
-            <span class="si-days overdue">逾期89天</span>
+            <span class="si-date">2026/04/20</span>
+            <span class="si-days overdue">逾期192天</span>
           </div>
           
           <div class="stage-info-row pending">
@@ -837,7 +837,7 @@ body {
       <div style="font-size:13px;color:var(--text-secondary);line-height:1.9;">
         <div style="margin-bottom:14px;">
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;">连接状态</div>
-          <div id="backendStatus" style="font-weight:600;"></div>
+          <div id="backendStatus" style="font-weight:600;"><span style="color:var(--accent-gold);">● 已连接云端，只读（未填编辑口令）</span></div>
         </div>
         <div style="margin-bottom:14px;">
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;">Supabase 地址</div>
@@ -1627,8 +1627,8 @@ ${sections}
 // ===== Supabase 后端连接 =====
 // AnonKey 存在浏览器 localStorage，不进源码、不进对话；也可直接写死在 anonKey 里
 const SUPABASE_CONFIG = {
-  url: 'https://br-valid-cony-00a62ffc.supabase.aidap-global.cn-beijing.volces.com',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1wbGF0Zm9ybSIsInJvbGUiOiJhbm9uIiwiZXhwIjozNjkwNTE0NzA2fQ.1etwAi0qC0rsgJnSql-D-sSZ1hjKQmBdzAyJunINsjQ'
+  url: 'https://dvkuppytthuaankknzbu.supabase.co',
+  anonKey: 'sb_publishable_uxrUsJ69ULFlkO5dKJox4Q_pefKhY4a'
 };
 const SB_KEY_STORE = 'finance_transport_sb_anon_key';
 const SB_EDIT_CODE_STORE = 'finance_transport_edit_code'; // 编辑口令，仅存本机
