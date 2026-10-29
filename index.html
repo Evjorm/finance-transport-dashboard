@@ -1,0 +1,2834 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金融交通项目看板</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&amp;family=Noto+Serif+SC:wght@600;700&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Supabase 后端 SDK（UMD 格式，window.supabase） -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root {
+  --bg-primary: #0f1419;
+  --bg-secondary: #161c24;
+  --bg-tertiary: #1c232e;
+  --border: #2a3441;
+  --border-light: #3a4655;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent-teal: #0d9488;
+  --accent-teal-light: #14b8a6;
+  --accent-gold: #d4a843;
+  --accent-gold-dim: rgba(212,168,67,0.15);
+  --stage-pre: #4fc3f7;
+  --stage-bid: #ffb74d;
+  --stage-sign: #ba68c8;
+  --stage-deliver: #4db6ac;
+  --stage-pay: #81c784;
+  --status-done: #4caf50;
+  --status-progress: #ff9800;
+  --status-pending: #78909c;
+  --status-terminated: #e53935;
+  --alert-urgent: #f44336;
+  --alert-upcoming: #ff9800;
+  --alert-overdue: #d32f2f;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Noto Sans SC', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+/* ===== 顶部导航 ===== */
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 32px; height: 64px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-left { display: flex; align-items: center; gap: 14px; }
+.topbar-logo {
+  width: 38px; height: 38px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent-teal), #0a7c72);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Noto Serif SC', serif; font-size: 18px; font-weight: 700; color: #fff;
+}
+.topbar-title h1 { font-family: 'Noto Serif SC', serif; font-size: 17px; font-weight: 700; }
+.topbar-title span { font-size: 11px; color: var(--text-muted); }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.topbar-date { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--accent-gold); font-weight: 500; }
+.save-indicator { font-size: 11px; color: var(--text-muted); padding: 3px 8px; border-radius: 4px; background: rgba(76,175,80,0.1); }
+.save-indicator.saving { background: rgba(255,152,0,0.15); color: var(--alert-upcoming); }
+/* 版本标记（不可更改） */
+.version-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 4px;
+  background: rgba(212,168,67,0.12); border: 1px solid rgba(212,168,67,0.3);
+  font-size: 11px; color: var(--accent-gold); font-weight: 500;
+  user-select: none; cursor: default; flex-shrink: 0;
+}
+.version-badge .vb-owner { font-weight: 600; }
+/* ===== 按钮 ===== */
+.btn {
+  padding: 8px 20px; border: 1px solid var(--border-light); border-radius: 6px;
+  background: var(--bg-tertiary); color: var(--text-primary);
+  font-family: 'Noto Sans SC', sans-serif; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn:hover { border-color: var(--accent-teal); color: var(--accent-teal-light); }
+.btn-primary { background: var(--accent-teal); border-color: var(--accent-teal); color: #fff; }
+.btn-primary:hover { background: var(--accent-teal-light); border-color: var(--accent-teal-light); color: #fff; }
+.btn-danger { border-color: rgba(229,57,53,0.4); color: var(--status-terminated); }
+.btn-danger:hover { background: rgba(229,57,53,0.1); border-color: var(--status-terminated); color: var(--status-terminated); }
+.btn-sm { padding: 6px 14px; font-size: 12px; }
+/* ===== 提醒栏 ===== */
+.reminder-bar { display: none; margin: 16px 32px 0; padding: 14px 20px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; }
+.reminder-bar.active { display: block; animation: slideDown 0.4s ease; }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+.reminder-bar-inner { display: flex; align-items: flex-start; gap: 16px; }
+.reminder-icon { width: 40px; height: 40px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.reminder-icon.urgent { background: rgba(244,67,54,0.15); }
+.reminder-icon.upcoming { background: rgba(255,152,0,0.15); }
+.reminder-icon.overdue { background: rgba(211,47,47,0.15); }
+.reminder-content { flex: 1; }
+.reminder-content h3 { font-family: 'Noto Serif SC', serif; font-size: 15px; margin-bottom: 8px; }
+.reminder-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.reminder-tag { padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; transition: all 0.2s; }
+.reminder-tag:hover { transform: translateY(-1px); }
+.reminder-tag.urgent { background: rgba(244,67,54,0.15); color: #ff6b6b; border: 1px solid rgba(244,67,54,0.3); }
+.reminder-tag.upcoming { background: rgba(255,152,0,0.15); color: #ffb74d; border: 1px solid rgba(255,152,0,0.3); }
+.reminder-tag.overdue { background: rgba(211,47,47,0.2); color: #ff5252; border: 1px solid rgba(211,47,47,0.4); }
+/* ===== 统计概览 ===== */
+.stats-row { display: flex; gap: 16px; margin: 0 32px 16px; }
+.stat-card { flex: 1; padding: 14px 18px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; }
+.stat-card:hover { border-color: var(--border-light); }
+.stat-card .stat-label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.stat-card .stat-value { font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 700; }
+.stat-card.total .stat-value { color: var(--accent-gold); }
+.stat-card.urgent .stat-value { color: var(--alert-urgent); }
+.stat-card.upcoming .stat-value { color: var(--alert-upcoming); }
+.stat-card.overdue .stat-value { color: var(--alert-overdue); }
+
+/* ===== 阶段进展展示 ===== */
+.stage-progress-row {
+  display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;
+}
+.sp-card {
+  flex: 1; min-width: 110px; padding: 10px 14px; background: var(--bg-secondary);
+  border: 1px solid var(--border); border-radius: 8px; display: flex;
+  align-items: center; gap: 8px; transition: all 0.2s;
+}
+.sp-card:hover { border-color: var(--border-light); cursor: pointer; }
+.sp-card.active { border-color: var(--accent-gold); box-shadow: 0 0 0 2px rgba(255,175,61,0.2); }
+.sp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.sp-pre .sp-dot { background: var(--stage-pre); }
+.sp-bid .sp-dot { background: var(--stage-bid); }
+.sp-sign .sp-dot { background: var(--stage-sign); }
+.sp-deliver .sp-dot { background: var(--stage-deliver); }
+.sp-pay .sp-dot { background: var(--stage-pay); }
+.sp-label { font-size: 12px; color: var(--text-muted); }
+.sp-value { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; margin-left: auto; }
+.sp-pre .sp-value { color: var(--stage-pre); }
+.sp-bid .sp-value { color: var(--stage-bid); }
+.sp-sign .sp-value { color: var(--stage-sign); }
+.sp-deliver .sp-value { color: var(--stage-deliver); }
+.sp-pay .sp-value { color: var(--stage-pay); }
+
+/* ===== 每周进度输入区 ===== */
+.progress-block {
+  margin-top: 12px; padding: 12px; background: rgba(43,123,185,0.08);
+  border: 1px solid rgba(43,123,185,0.3); border-radius: 8px;
+}
+.progress-block-title {
+  font-size: 12px; font-weight: 600; color: var(--stage-bid); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.progress-block-title .weekly-badge {
+  font-size: 10px; padding: 2px 6px; background: var(--stage-bid); color: #fff; border-radius: 4px;
+}
+.progress-bar-wrap {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.progress-bar {
+  flex: 1; height: 10px; background: var(--border); border-radius: 5px; overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--stage-pre), var(--stage-bid));
+  border-radius: 5px; transition: width 0.3s;
+}
+.progress-bar-text { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: var(--stage-bid); min-width: 40px; text-align: right; }
+.progress-input-row {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.progress-input-row input[type="number"] {
+  width: 70px; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text-primary); font-size: 13px;
+}
+.progress-input-row input[type="text"], .progress-input-row textarea {
+  flex: 1; min-width: 160px; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text-primary); font-size: 13px;
+}
+.progress-input-row textarea { min-height: 32px; resize: vertical; }
+.progress-input-row .btn { padding: 6px 12px; font-size: 12px; }
+.progress-history {
+  margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px;
+  max-height: 180px; overflow-y: auto;
+}
+.progress-history-item {
+  display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 12px;
+}
+.progress-history-item .ph-week { color: var(--text-muted); font-family: 'JetBrains Mono', monospace; min-width: 52px; }
+.progress-history-item .ph-date { color: var(--text-muted); min-width: 80px; }
+.progress-history-item .ph-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.progress-history-item .ph-fill { height: 100%; background: var(--stage-bid); border-radius: 3px; }
+.progress-history-item .ph-percent { font-family: 'JetBrains Mono', monospace; min-width: 40px; text-align: right; color: var(--stage-bid); font-weight: 600; }
+.progress-history-item .ph-note { flex: 0 0 auto; max-width: 180px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===== 首页 v2 流程总览条 ===== */
+.bpm-flow {
+  margin: 0 32px 16px; padding: 13px 16px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.bpm-flow-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.bpm-flow-toggle {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  cursor: pointer; user-select: none; padding: 4px 0;
+}
+.bpm-flow-toggle:hover .bpm-flow-title { color: var(--accent-teal); }
+.bpm-flow-toggle .bpm-flow-arrow { margin-left: auto; color: var(--text-muted); font-size: 12px; transition: transform 0.2s; }
+.bpm-flow-body { margin-top: 10px; }
+.bpm-flow-title { font-size: 13px; font-weight: 600; color: var(--stage-pre); }
+.bpm-flow-sub { font-size: 11px; color: var(--text-muted); }
+.bpm-flow-strip { display: flex; align-items: stretch; gap: 6px; }
+.bpm-flow-card {
+  flex: 1; min-width: 0; padding: 10px 12px; cursor: pointer;
+  background: rgba(148,163,184,0.05); border: 1px solid rgba(148,163,184,0.2);
+  border-radius: 6px; transition: all 0.2s;
+}
+.bpm-flow-card:hover { transform: translateY(-2px); border-color: var(--stage-pre); background: rgba(79,195,247,0.07); }
+.bpm-flow-arrow { align-self: center; color: var(--text-muted); font-size: 14px; flex-shrink: 0; }
+.bpm-flow-name { font-size: 12.5px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
+.bpm-flow-bpm { font-size: 10.5px; color: var(--stage-pre); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bpm-flow-meta { margin-bottom: 5px; }
+.bpm-flow-contact { font-size: 10.5px; color: var(--text-muted); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bpm-flow-mat { font-size: 10.5px; color: var(--accent-gold); }
+@media (max-width: 1100px) {
+  .bpm-flow { margin-left: 16px; margin-right: 16px; }
+  .bpm-flow-strip { flex-wrap: wrap; }
+  .bpm-flow-arrow { display: none; }
+  .bpm-flow-card { flex: 1 1 40%; }
+}
+/* ===== 筛选栏 ===== */
+.filter-bar { margin: 0 32px 20px; display: flex; align-items: center; gap: 12px; }
+.search-input {
+  flex: 1; padding: 9px 16px; background: var(--bg-secondary);
+  border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary);
+  font-family: 'Noto Sans SC', sans-serif; font-size: 14px; outline: none; transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--accent-teal); }
+.filter-select {
+  padding: 9px 14px; background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text-primary); font-family: 'Noto Sans SC', sans-serif; font-size: 13px; outline: none; cursor: pointer;
+}
+.filter-select:focus { border-color: var(--accent-teal); }
+/* ===== 看板视图 ===== */
+.dashboard-view { padding: 20px 32px 40px; }
+.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; }
+.project-card {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;
+}
+.project-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--stage-pre), var(--stage-bid), var(--stage-sign), var(--stage-deliver), var(--stage-pay)); opacity: 0; transition: opacity 0.25s; }
+.project-card:hover { border-color: var(--border-light); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.project-card:hover::before { opacity: 1; }
+.card-header { margin-bottom: 14px; }
+.card-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; line-height: 1.4; }
+.card-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-persons { display: flex; gap: 16px; margin-bottom: 12px; font-size: 11.5px; color: var(--text-muted); }
+.card-persons span { display: flex; align-items: center; gap: 4px; }
+/* 阶段标签 */
+.stage-labels { display: flex; gap: 4px; margin-bottom: 8px; }
+.stage-label { flex: 1; text-align: center; font-size: 10.5px; padding: 3px 0; color: var(--text-muted); border-radius: 3px; background: rgba(120,144,156,0.08); transition: all 0.3s; }
+.stage-label.done { color: var(--status-done); background: rgba(76,175,80,0.1); }
+.stage-label.active { color: #fff; font-weight: 600; }
+.stage-label.active[data-stage="preSelection"] { background: rgba(79,195,247,0.2); color: var(--stage-pre); }
+.stage-label.active[data-stage="bidding"] { background: rgba(255,183,77,0.2); color: var(--stage-bid); }
+.stage-label.active[data-stage="signing"] { background: rgba(186,104,200,0.2); color: var(--stage-sign); }
+.stage-label.active[data-stage="delivery"] { background: rgba(77,182,172,0.2); color: var(--stage-deliver); }
+.stage-label.active[data-stage="payment"] { background: rgba(129,199,132,0.2); color: var(--stage-pay); }
+/* 阶段进度条 */
+.stage-bar { display: flex; gap: 3px; margin-bottom: 14px; height: 5px; }
+.stage-seg { flex: 1; border-radius: 3px; background: rgba(120,144,156,0.15); transition: all 0.3s; }
+.stage-seg.done { background: var(--status-done); }
+.stage-seg.progress { background: var(--status-progress); animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+/* 三阶段信息 */
+.stage-info-block { border-top: 1px solid var(--border); padding-top: 12px; }
+.stage-info-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; padding: 5px 0; }
+.si-label { color: var(--text-muted); font-size: 10.5px; width: 52px; flex-shrink: 0; }
+.si-name { color: var(--text-primary); font-weight: 500; flex: 1; }
+.si-status { font-size: 10px; padding: 1px 6px; border-radius: 3px; }
+.si-status.done { background: rgba(76,175,80,0.15); color: var(--status-done); }
+.si-status.progress { background: rgba(255,152,0,0.15); color: var(--status-progress); }
+.si-status.pending { background: rgba(120,144,156,0.15); color: var(--status-pending); }
+.si-status.terminated { background: rgba(229,57,53,0.15); color: var(--status-terminated); }
+.si-date { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-muted); }
+.si-days { font-size: 10.5px; font-weight: 600; }
+.si-days.urgent { color: var(--alert-urgent); }
+.si-days.upcoming { color: var(--alert-upcoming); }
+.si-days.normal { color: var(--text-secondary); }
+.si-days.overdue { color: var(--alert-overdue); }
+/* 空状态 */
+.empty-state { grid-column: 1 / -1; text-align: center; padding: 80px 20px; color: var(--text-muted); }
+.empty-state-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+.empty-state h3 { font-size: 16px; margin-bottom: 8px; color: var(--text-secondary); }
+.empty-state p { font-size: 13px; }
+/* ===== 详情视图 ===== */
+.detail-view { display: none; padding: 24px 32px 40px; max-width: 860px; margin: 0 auto; }
+.detail-view.active { display: block; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.detail-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 16px; }
+.detail-back { background: none; border: 1px solid var(--border); color: var(--text-secondary); padding: 7px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: 'Noto Sans SC', sans-serif; transition: all 0.2s; white-space: nowrap; }
+.detail-back:hover { border-color: var(--accent-teal); color: var(--accent-teal); }
+.detail-title-block { flex: 1; }
+.detail-title-block h2 { font-family: 'Noto Serif SC', serif; font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.detail-title-block p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.detail-actions { display: flex; gap: 8px; }
+.detail-persons { display: flex; gap: 24px; margin-bottom: 24px; padding: 14px 18px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; }
+.detail-person-item { font-size: 12.5px; }
+.role-label { color: var(--text-muted); }
+.role-name { color: var(--text-primary); font-weight: 500; }
+/* 时间轴 */
+.timeline { position: relative; padding-left: 24px; }
+.timeline::before { content: ''; position: absolute; left: 7px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+.timeline-stage { position: relative; margin-bottom: 24px; padding: 16px 18px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; }
+.timeline-stage::before { content: ''; position: absolute; left: -21px; top: 20px; width: 10px; height: 10px; border-radius: 50%; background: var(--status-pending); border: 2px solid var(--bg-primary); }
+.timeline-stage.done::before { background: var(--status-done); }
+.timeline-stage.progress::before { background: var(--status-progress); box-shadow: 0 0 8px rgba(255,152,0,0.4); }
+.timeline-stage.terminated::before { background: var(--status-terminated); }
+.stage-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.stage-header-left { display: flex; align-items: center; gap: 10px; }
+.stage-dot { width: 8px; height: 8px; border-radius: 50%; }
+.stage-name { font-size: 14px; font-weight: 600; }
+.stage-status-tag { font-size: 10.5px; padding: 2px 8px; border-radius: 3px; font-weight: 500; }
+.stage-status-tag.done { background: rgba(76,175,80,0.15); color: var(--status-done); }
+.stage-status-tag.progress { background: rgba(255,152,0,0.15); color: var(--status-progress); }
+.stage-status-tag.pending { background: rgba(120,144,156,0.15); color: var(--status-pending); }
+.stage-status-tag.terminated { background: rgba(229,57,53,0.15); color: var(--status-terminated); }
+/* 里程碑 */
+.milestone-list { display: flex; flex-direction: column; gap: 8px; }
+.milestone-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(148,163,184,0.04); border-radius: 5px; font-size: 12px; }
+.milestone-item.alert-urgent { background: rgba(244,67,54,0.08); border: 1px solid rgba(244,67,54,0.2); }
+.milestone-item.alert-upcoming { background: rgba(255,152,0,0.06); border: 1px solid rgba(255,152,0,0.15); }
+.milestone-left { display: flex; align-items: center; gap: 8px; }
+.milestone-label { color: var(--text-secondary); }
+.milestone-right { display: flex; align-items: center; gap: 10px; }
+.milestone-date { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--text-primary); }
+.milestone-days { font-size: 11px; font-weight: 600; }
+.milestone-days.urgent { color: var(--alert-urgent); }
+.milestone-days.upcoming { color: var(--alert-upcoming); }
+.milestone-days.normal { color: var(--text-muted); }
+.milestone-days.overdue { color: var(--alert-overdue); }
+.milestone-days.done { color: var(--status-done); }
+.milestone-check { width: 16px; height: 16px; border-radius: 3px; border: 1.5px solid var(--border-light); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 10px; color: transparent; transition: all 0.2s; flex-shrink: 0; }
+.milestone-check.checked { background: var(--status-done); border-color: var(--status-done); color: #fff; }
+/* 阶段操作 */
+.stage-actions { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; }
+.stage-action-btn { font-size: 11.5px; padding: 5px 12px; }
+.stage-action-hint { font-size: 11.5px; color: var(--text-muted); }
+/* ===== v2 升级：BPM 流程信息块 ===== */
+.bpm-block {
+  margin: 10px 0 12px; padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(79,195,247,0.08), rgba(13,148,136,0.06));
+  border: 1px solid rgba(79,195,247,0.25);
+  border-left: 3px solid var(--stage-pre);
+  border-radius: 6px; font-size: 12px; line-height: 1.75;
+}
+.bpm-block-title { font-weight: 600; color: var(--stage-pre); margin-bottom: 8px; font-size: 12px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bpm-block-row { display: flex; gap: 8px; margin-bottom: 4px; align-items: flex-start; }
+.bpm-block-row .k { color: var(--text-muted); flex-shrink: 0; min-width: 68px; font-weight: 500; }
+.bpm-block-row .v { color: var(--text-secondary); flex: 1; }
+.bpm-block-guide { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(148,163,184,0.28); }
+.bpm-block-guide .v { color: var(--text-secondary); }
+.bpm-block-guide ol { margin: 0; padding-left: 16px; }
+.bpm-block-guide li { margin-bottom: 3px; }
+.bpm-chip { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; background: rgba(79,195,247,0.14); color: var(--stage-pre); margin-right: 6px; }
+/* 通用收起/展开 */
+.bpm-collapse {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; margin-top: 8px; cursor: pointer; user-select: none;
+  background: rgba(148,163,184,0.06); border: 1px solid rgba(148,163,184,0.18);
+  border-radius: 4px; font-size: 12px; color: var(--text-secondary); transition: all 0.2s;
+}
+.bpm-collapse:hover { background: rgba(79,195,247,0.08); border-color: var(--stage-pre); color: var(--stage-pre); }
+.bpm-collapse-arrow { color: var(--text-muted); font-size: 11px; }
+.bpm-collapse-body { padding-top: 6px; }
+/* 标准物料下载 */
+.materials-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(148,163,184,0.2); }
+.materials-block-title { font-size: 12px; font-weight: 600; color: var(--stage-pre); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.materials-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.material-item { display: flex; justify-content: space-between; align-items: center; background: rgba(148,163,184,0.06); border: 1px solid rgba(148,163,184,0.2); border-radius: 6px; padding: 9px 12px; transition: all 0.2s; }
+.material-item:hover { border-color: var(--stage-pre); background: rgba(79,195,247,0.06); }
+.material-info { flex: 1; min-width: 0; }
+.material-name { font-size: 12.5px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.material-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.material-fmt { font-size: 10px; padding: 0 4px; margin-left: 6px; border-radius: 3px; border: 1px solid rgba(79,195,247,0.35); color: var(--stage-pre); flex-shrink: 0; }
+.material-dl { padding: 4px 11px; font-size: 11.5px; color: var(--stage-pre); background: rgba(79,195,247,0.1); border: 1px solid rgba(79,195,247,0.35); border-radius: 4px; cursor: pointer; white-space: nowrap; margin-left: 10px; transition: all 0.2s; }
+.material-dl:hover { background: var(--stage-pre); color: #10212e; }
+/* 框架备注 */
+.framework-notes { margin-top: 16px; padding: 14px 16px; background: rgba(212,168,67,0.07); border: 1px solid rgba(212,168,67,0.28); border-radius: 6px; font-size: 12px; line-height: 1.9; color: var(--text-secondary); }
+.framework-notes-title { font-weight: 600; color: var(--accent-gold); margin-bottom: 6px; }
+.framework-notes ol { margin: 0; padding-left: 18px; }
+/* ===== 弹窗 ===== */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.active { display: flex; animation: fadeIn 0.2s ease; }
+.modal { background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 12px; width: 640px; max-width: 100%; max-height: 90vh; overflow-y: auto; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px 0; }
+.modal-title { font-family: 'Noto Serif SC', serif; font-size: 17px; font-weight: 700; }
+.modal-close { background: none; border: none; color: var(--text-muted); font-size: 22px; cursor: pointer; padding: 4px; line-height: 1; }
+.modal-close:hover { color: var(--text-primary); }
+.modal-body { padding: 20px 24px; }
+.modal-footer { padding: 0 24px 20px; display: flex; justify-content: flex-end; gap: 10px; }
+.form-section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.form-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.form-section-title { font-size: 13px; font-weight: 600; color: var(--accent-gold); margin-bottom: 12px; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; font-weight: 500; }
+.form-group input[type="text"], .form-group input[type="date"], .form-group textarea, .form-group select {
+  width: 100%; padding: 8px 12px; background: var(--bg-tertiary); border: 1px solid var(--border);
+  border-radius: 5px; color: var(--text-primary); font-family: 'Noto Sans SC', sans-serif; font-size: 13px; outline: none; transition: border-color 0.2s;
+}
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--accent-teal); }
+.form-group textarea { resize: vertical; min-height: 60px; }
+.form-row { display: flex; gap: 12px; }
+.form-row .form-group { flex: 1; }
+.form-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+.form-check input[type="checkbox"] { accent-color: var(--accent-teal); }
+.form-hint { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+/* 删除确认 */
+.confirm-dialog { text-align: center; padding: 20px 0; }
+.confirm-dialog p { font-size: 14px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.7; }
+.confirm-dialog .btn-group { display: flex; justify-content: center; gap: 12px; }
+/* Toast */
+.toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; background: var(--bg-secondary); border: 1px solid var(--accent-teal); border-radius: 8px; color: var(--text-primary); font-size: 13px; z-index: 300; animation: slideUp 0.3s ease; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+/* 响应式 */
+@media (max-width: 768px) {
+  .topbar { padding: 0 16px; }
+  .topbar-right { gap: 6px; }
+  .topbar-right .btn { padding: 5px 10px; font-size: 11px; }
+  .reminder-bar, .stats-row, .filter-bar, .project-grid, .detail-view { margin-left: 16px; margin-right: 16px; }
+  .dashboard-view { padding: 16px; }
+  .project-grid { grid-template-columns: 1fr; }
+  .detail-persons { flex-direction: column; gap: 8px; }
+  .form-row { flex-direction: column; gap: 0; }
+  .bpm-flow { margin-left: 16px; margin-right: 16px; }
+  .bpm-flow-strip { flex-wrap: wrap; }
+  .bpm-flow-arrow { display: none; }
+  .bpm-flow-card { flex: 1 1 40%; }
+}
+</style>
+</head>
+<body>
+
+<!-- 顶部导航栏 -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-logo">金</div>
+    <div class="topbar-title">
+      <h1>金融交通项目看板</h1>
+      <span id="systemDate">2026年10月28日 星期三</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="topbar-date" id="topbarClock">15:43:38</div>
+    <div class="version-badge" title="版本标记，不可更改">v2.0 · <span class="vb-owner">金融交通事业部</span></div>
+    <div class="save-indicator" id="saveIndicator">已保存</div>
+    <button class="btn btn-sm" onclick="openBackendModal()" id="backendBtn" title="配置云端后端，实现多人实时协同">🔌 后端</button>
+    <button class="btn btn-sm" onclick="openShareModal()">🔗 分享</button>
+    <button class="btn btn-sm" onclick="openMaterialsHub()">📦 物料中心</button>
+    <button class="btn btn-sm" onclick="importHeadProjects()" title="导入2026年头部签约项目（按合同号去重）">🏆 导入头部项目</button>
+    <button class="btn btn-sm" onclick="exportData()" title="导出为 Excel 项目台账">📤 导出 Excel</button>
+    <button class="btn btn-sm" onclick="document.getElementById('importFile').click()" title="从 Excel 项目台账导入">📥 导入 Excel</button>
+    <input type="file" id="importFile" accept=".xlsx,.xls,.json" style="display:none" onchange="importData(event)">
+    <button class="btn btn-primary" onclick="openModal()">新增项目</button>
+  </div>
+</div>
+
+<!-- 提醒栏 -->
+<div class="reminder-bar active" id="reminderBar">
+  <div class="reminder-bar-inner">
+    <div class="reminder-icon overdue" id="reminderIcon">⚠</div>
+    <div class="reminder-content">
+      <h3 id="reminderTitle">3 项已逾期  ·  0 项紧急  ·  0 项即将到期</h3>
+      <div class="reminder-list" id="reminderList"><span class="reminder-tag overdue" onclick="openDetail('head_SNXCZ2600361EGN00')">高速公路联网收费系统业务支撑平台运维合同 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_SNXCZ2600404EGY00')">西安高铁东站智慧交通项目软件开发服务合同 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_SNXCZ2600405BGY00')">西安高铁东站智慧交通项目设备采购合同 - 交付资料准备已逾期</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 统计概览 -->
+<div class="stats-row" id="statsRow">
+  <div class="stat-card total"><span class="stat-label">项目总数</span><span class="stat-value" id="statTotal">6</span></div>
+  <div class="stat-card urgent"><span class="stat-label">紧急（今日到期）</span><span class="stat-value" id="statUrgent">0</span></div>
+  <div class="stat-card upcoming"><span class="stat-label">即将到期（3天内）</span><span class="stat-value" id="statUpcoming">0</span></div>
+  <div class="stat-card overdue"><span class="stat-label">已逾期</span><span class="stat-value" id="statOverdue">3</span></div>
+</div>
+
+<!-- 阶段进展展示 -->
+<div class="stage-progress-row">
+  <div class="sp-card sp-pre" data-stage="preSelection" onclick="filterByStage('preSelection')"><span class="sp-dot"></span><span class="sp-label">标前遴选</span><span class="sp-value" id="spPre">1</span></div>
+  <div class="sp-card sp-bid" data-stage="bidding" onclick="filterByStage('bidding')"><span class="sp-dot"></span><span class="sp-label">投标</span><span class="sp-value" id="spBid">0</span></div>
+  <div class="sp-card sp-sign" data-stage="signing" onclick="filterByStage('signing')"><span class="sp-dot"></span><span class="sp-label">签约</span><span class="sp-value" id="spSign">5</span></div>
+  <div class="sp-card sp-deliver" data-stage="delivery" onclick="filterByStage('delivery')"><span class="sp-dot"></span><span class="sp-label">交付</span><span class="sp-value" id="spDeliver">0</span></div>
+  <div class="sp-card sp-pay" data-stage="payment" onclick="filterByStage('payment')"><span class="sp-dot"></span><span class="sp-label">回款</span><span class="sp-value" id="spPay">0</span></div>
+</div>
+
+<!-- v2 流程总览（首页） -->
+<div class="bpm-flow" id="bpmFlow">
+    <div class="bpm-flow-toggle" onclick="toggleBpmFlow()">
+      <span class="bpm-flow-title">🏛 小云中台流程总览（v2）</span>
+      <span class="bpm-flow-sub">点击查看各节点 BPM / 周期 / 对接人 / 标准物料</span>
+      <span class="bpm-flow-arrow" id="bpmFlowArrow">▼</span>
+    </div>
+    <div class="bpm-flow-body" id="bpmFlowBody" style="display:none;">
+      <div class="bpm-flow-strip">
+        
+          
+          <div class="bpm-flow-card" onclick="openMaterialsHub()" title="BPM 01 商机创建 + 02 组建团队 → 03 方案制定 + 04 中台把关">
+            <div class="bpm-flow-name">标前遴选</div>
+            <div class="bpm-flow-bpm">BPM 01-04 商机 → 遴选 → 方案</div>
+            <div class="bpm-flow-meta"><span class="bpm-chip">⏱ 1.5天 + 5-7天 + 3-5天</span></div>
+            <div class="bpm-flow-contact">对接：韩宇（标前遴选会）、乌文超（方案评审会）</div>
+            <div class="bpm-flow-mat">📦 2 份标准物料</div>
+          </div>
+          <div class="bpm-flow-arrow">→</div>
+          <div class="bpm-flow-card" onclick="openMaterialsHub()" title="BPM 05① 标前评审会（核心）">
+            <div class="bpm-flow-name">投标</div>
+            <div class="bpm-flow-bpm">BPM 05① 标前评审会（2-3天）</div>
+            <div class="bpm-flow-meta"><span class="bpm-chip">⏱ 2-3天</span></div>
+            <div class="bpm-flow-contact">对接：乌文超（信产）</div>
+            <div class="bpm-flow-mat">📦 17 份标准物料</div>
+          </div>
+          <div class="bpm-flow-arrow">→</div>
+          <div class="bpm-flow-card" onclick="openMaterialsHub()" title="BPM 05② 中标签约">
+            <div class="bpm-flow-name">签约</div>
+            <div class="bpm-flow-bpm">BPM 05② 中标签约</div>
+            <div class="bpm-flow-meta"><span class="bpm-chip">⏱ —（按合同约定）</span></div>
+            <div class="bpm-flow-contact">对接：信产</div>
+            <div class="bpm-flow-mat">📦 3 份标准物料</div>
+          </div>
+          <div class="bpm-flow-arrow">→</div>
+          <div class="bpm-flow-card" onclick="openMaterialsHub()" title="BPM 06 项目启动（录入业务解构+交付接管）→ 07 项目采购">
+            <div class="bpm-flow-name">交付</div>
+            <div class="bpm-flow-bpm">BPM 06 项目启动 + 07 项目采购</div>
+            <div class="bpm-flow-meta"><span class="bpm-chip">⏱ 0.5天 + 1-3天 + 1-2周</span></div>
+            <div class="bpm-flow-contact">对接：孙垚（信产）</div>
+            <div class="bpm-flow-mat">📦 4 份标准物料</div>
+          </div>
+          <div class="bpm-flow-arrow">→</div>
+          <div class="bpm-flow-card" onclick="openMaterialsHub()" title="合同约定回款节点（非BPM节点）">
+            <div class="bpm-flow-name">回款</div>
+            <div class="bpm-flow-bpm">合同约定回款节点</div>
+            <div class="bpm-flow-meta"><span class="bpm-chip">⏱ 按合同约定</span></div>
+            <div class="bpm-flow-contact">对接：—</div>
+            <div class="bpm-flow-mat">📦 2 份标准物料</div>
+          </div>
+      </div>
+    </div></div>
+
+<!-- 筛选栏 -->
+<div class="filter-bar">
+  <input type="text" class="search-input" id="searchInput" placeholder="搜索项目名称或简介..." oninput="renderDashboard()">
+  <select class="filter-select" id="stageFilter" onchange="renderDashboard()">
+    <option value="">全部阶段</option>
+    <option value="preSelection">标前遴选阶段</option>
+    <option value="bidding">投标阶段</option>
+    <option value="signing">签约阶段</option>
+    <option value="delivery">交付阶段</option>
+    <option value="payment">回款阶段</option>
+    <option value="completed">已完成</option>
+    <option value="terminated">已终止</option>
+  </select>
+</div>
+
+<!-- 看板视图 -->
+<div class="dashboard-view" id="dashboardView">
+  <div class="project-grid" id="projectGrid" style="display: grid;">
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('sample_1')">
+        <div class="card-header">
+          <div class="card-title">陕西省交通运输DBD智能车载终端替换项目</div>
+          <div class="card-desc">陕西省交通运输重点营运车辆DBD智能车载终端替换及技术服务项目，覆盖全省重点营运车辆北斗终端规模化替换。</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 王明</span>
+          <span>👔 李华</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label active" data-stage="preSelection">标前遴选</div><div class="stage-label " data-stage="bidding">投标</div><div class="stage-label " data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg pending"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">标前遴选</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days normal"></span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">2026/09/25</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div>
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_UEJCA2602094EGN00')">
+        <div class="card-header">
+          <div class="card-title">大模型平台建设项目合同</div>
+          <div class="card-desc">陕西重型汽车有限公司 · 集团数智签约 · 合同额 ¥179.00万 · DICT ¥13.21万 · 期间 202606 · 合同号 UEJCA2602094EGN00</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 王雯</span>
+          <span>👔 金融行业事业部</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/02/01</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">—</span>
+            <span class="si-days normal"></span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">交付</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div>
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_SNXCZ2600361EGN00')">
+        <div class="card-header">
+          <div class="card-title">高速公路联网收费系统业务支撑平台运维合同</div>
+          <div class="card-desc">陕西省高速公路收费中心 · 项目审批中 · 合同额 ¥178.60万 · DICT ¥80.19万 · 期间 202606 · 合同号 SNXCZ2600361EGN00</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 师雪健</span>
+          <span>👔 政务行业拓展部</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/02/01</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/07/09</span>
+            <span class="si-days overdue">逾期111天</span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">交付</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div>
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_UEJCA2602603EGN00')">
+        <div class="card-header">
+          <div class="card-title">2026年省级视频云联网监测系统公有云资源及传输网络租用</div>
+          <div class="card-desc">陕西省高速公路收费中心 · 集团数智签约(集团未统计到) · 合同额 ¥297.00万 · DICT ¥28.02万 · 期间 手工加 · 合同号 UEJCA2602603EGN00</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 庞博</span>
+          <span>👔 未指派</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/02/01</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">—</span>
+            <span class="si-days normal"></span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">交付</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div>
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_SNXCZ2600404EGY00')">
+        <div class="card-header">
+          <div class="card-title">西安高铁东站智慧交通项目软件开发服务合同</div>
+          <div class="card-desc">中徽建技术有限公司 · 头部项目 · 合同额 ¥4015.20万 · DICT ¥3199.59万 · 期间 202606 · 合同号 SNXCZ2600404EGY00</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 王磊</span>
+          <span>👔 交通物流行业事业部</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/02/01</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/07/31</span>
+            <span class="si-days overdue">逾期89天</span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">交付</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div>
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_SNXCZ2600405BGY00')">
+        <div class="card-header">
+          <div class="card-title">西安高铁东站智慧交通项目设备采购合同</div>
+          <div class="card-desc">中徽建技术有限公司 · 头部项目·DICT收入为0（设备采购） · 合同额 ¥1049.45万 · 期间 202606 · 合同号 SNXCZ2600405BGY00</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 王磊</span>
+          <span>👔 交通物流行业事业部</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/02/01</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/07/31</span>
+            <span class="si-days overdue">逾期89天</span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">交付</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div></div>
+</div>
+
+<!-- 详情视图 -->
+<div class="detail-view" id="detailView"></div>
+
+<!-- 新增/编辑弹窗 -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">新增项目</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveProject()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 分享弹窗 -->
+<div class="modal-overlay" id="shareOverlay">
+  <div class="modal" style="width:520px;">
+    <div class="modal-header">
+      <div class="modal-title">🔗 分享看板</div>
+      <button class="modal-close" onclick="closeShareModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:13px;color:var(--text-secondary);line-height:2;">
+        <p style="margin-bottom:12px;">通过以下方式将看板分享给团队成员：</p>
+        <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">本机访问</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-teal);" id="shareLocalUrl">http://localhost:8765/金融交通项目看板.html</div>
+        </div>
+        <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">局域网访问（需启动服务器）</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--stage-pre);" id="shareLanUrl">获取中...</div>
+        </div>
+        <div style="font-size:11.5px;color:var(--text-muted);line-height:1.8;">
+          <p>💡 局域网共享步骤：</p>
+          <p>1. 在看板文件所在目录打开命令行</p>
+          <p>2. 运行 <code style="background:rgba(148,163,184,0.15);padding:2px 6px;border-radius:3px;">python -m http.server 8765</code></p>
+          <p>3. 同事通过局域网 IP 访问即可</p>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="exportData()">导出 Excel 同步</button>
+      <button class="btn btn-primary" onclick="copyShareLink()">复制链接</button>
+    </div>
+  </div>
+</div>
+
+<!-- 后端连接弹窗 -->
+<div class="modal-overlay" id="backendOverlay">
+  <div class="modal" style="width:560px;">
+    <div class="modal-header">
+      <div class="modal-title">🔌 云端后端连接</div>
+      <button class="modal-close" onclick="closeBackendModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.9;">
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;">连接状态</div>
+          <div id="backendStatus" style="font-weight:600;"></div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;">Supabase 地址</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--accent-teal);word-break:break-all;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:9px;" id="backendUrl"></div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;">AnonKey（已内置，无需粘贴）</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div id="backendKeyMasked" style="flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:9px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+            <button class="btn btn-sm" type="button" onclick="toggleKeyEditor()">更换</button>
+          </div>
+          <textarea id="backendKeyInput" rows="3" placeholder="粘贴新的 AnonKey（留空则用内置密钥）" style="display:none;margin-top:8px;width:100%;box-sizing:border-box;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:9px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-primary);resize:vertical;"></textarea>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;">编辑口令（写入云端必需，填一次本机自动记住）</div>
+          <input id="backendCodeInput" type="password" placeholder="输入编辑口令，留空则为只读模式" style="width:100%;box-sizing:border-box;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:9px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-primary);">
+        </div>
+        <div style="font-size:11.5px;color:var(--text-muted);line-height:1.8;background:rgba(59,130,246,0.06);border-left:3px solid var(--accent-blue);padding:10px 12px;border-radius:4px;">
+          <p>💡 获取 AnonKey：本机 PowerShell 运行</p>
+          <p style="font-family:'JetBrains Mono',monospace;font-size:10.5px;">byted-supabase-cli projects api-keys --workspace-id super-aster-55016399 --reveal -o json</p>
+          <p style="margin-top:6px;">⚠️ 只复制 <b>AnonKey</b>（Public 类型），<b>不要</b>用 ServiceRoleKey 放前端。</p>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="disconnectBackend()">断开连接</button>
+      <button class="btn btn-primary" onclick="connectBackend()">连接并同步</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认弹窗 -->
+<div class="modal-overlay" id="confirmOverlay">
+  <div class="modal" style="width:400px;">
+    <div class="modal-body">
+      <div class="confirm-dialog">
+        <p id="confirmText">确定要删除该项目吗？此操作不可恢复。</p>
+        <div class="btn-group">
+          <button class="btn" onclick="closeConfirm()">取消</button>
+          <button class="btn btn-danger" onclick="doDelete()">确认删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 常量配置 =====
+const FRAMEWORK_NOTES = [
+  '小云中台不替代大中台把关职能，仅做行业前置预审与协同统筹。',
+  '群云中台（大中台）关键接口人：韩宇（标前遴选会）、乌文超（线下方案评审会、标前评审会）。',
+  '周期为经验参考值，重大项目适当延长。',
+  '标前评审标准物料包共 12 项（①-⑫）已全部提供官方模板：第 6 项为 ICT项目标前评审会会议纪要及评审要点表、第 9 项为上会PPT模版；另按官方附件补充投资类业财解析表、项目实施方案、项目评分表、收入承诺函、ICT立项要求、内控及管理速查表。',
+  '项目清单、专业公司及生态能力图谱由事业部另行提供，后续补充进方案库章节。'
+];
+
+// 五阶段配置（依据《金融交通事业部"小云中台"流程及工作框架 v2（优化）》）
+const STAGE_CONFIG = [
+  {
+    key: 'preSelection', name: '标前遴选', fullName: '标前遴选阶段',
+    bpm: 'BPM 01 商机创建 + 02 组建团队 → 03 方案制定 + 04 中台把关',
+    workflow: '创建商机及组建团队 → 录入客户需求 → 启动标前遴选会 → 制定解决方案 → 方案评审会',
+    duty: '客户经理 + 方案经理',
+    cycle: '1.5天 + 5-7天 + 3-5天',
+    guide: [
+      '1、BPM系统创建商机（所属行业、项目类型、预估金额）',
+      '2、BPM系统团队组建（售前方案经理、售中项目经理、售后接口人）',
+      '3、BPM系统录入客户需求（功能/预算/时限）',
+      '4、申请群云中台标前遴选会，确定合作伙伴（短名单库/公开招募/单一来源）',
+      '5、基于遴选结果编制解决方案，优先复用方案预制菜',
+      '6、申请云中台方案评审会，BPM系统录入方案解构表（七融卡位、解构完整性、行业适配性、交付可行性）'
+    ],
+    deliverables: '遴选纪要/伙伴确定、解决方案文本、方案解构表、评审纪要',
+    cloudContact: '韩宇（标前遴选会）、乌文超（方案评审会）',
+    midRole: '方案预制菜供给、生态伙伴库推荐、行业预审',
+    materials: [
+      { name: '1、方案解构模版', desc: '标准物料① 总表/硬件/软件/云网资源三表联动，类型枚举内嵌云网表' },
+      { name: '3、方案评审表', desc: '标准物料③ 不含自有能力，七融/适配/交付评审' }
+    ]
+  },
+  {
+    key: 'bidding', name: '投标', fullName: '投标阶段',
+    bpm: 'BPM 05① 标前评审会（核心）',
+    workflow: '申请群云中台标前评审会，确定评审排期',
+    duty: '方案经理',
+    cycle: '2-3天',
+    guide: [
+      '1、申请群云中台标前评审会，确定评审排期',
+      '2、准备遴选结果+财务前置表+合同初稿等标准资料',
+      '3、财务/法务/方案/采购多部门联合评审，决策是否投标'
+    ],
+    deliverables: '遴选纪要、业财解析表、招标文件、合同初稿、投标文件',
+    cloudContact: '乌文超（信产）',
+    midRole: '重点明确：选型依据、投资核实、三有项目核实、增值服务承诺',
+    materials: [
+      { name: '标前遴选纪要表', desc: '遴选路径：短名单库/公开招募/单一来源（投标前完成并提供）' },
+      { name: '标前评审资料清单', desc: '标准物料①-⑫ 全套核对表（12 项齐全）' },
+      { name: '项目实施方案模板', desc: '官方附件3 标前评审前准备材料第1项，含建设需求/投资估算清单' },
+      { name: '2、项目业财解析模版', desc: '标准物料② 财务前置会审，含解构与资金流公式' },
+      { name: '投资类业财解析表模版', desc: '官方附件1 混合型/纯投资型 × 1年/多年进收 四表联动' },
+      { name: '项目评分表（低效益及战略项目）', desc: '官方附件4 低效益评估模型（100分制，≥60预通过）+战略型评估模型' },
+      { name: '项目收入承诺函', desc: '官方附件5 低效益及战略项目必备，含续签收入承诺' },
+      { name: '4、招标文件要点检查', desc: '标准物料④ 资格/技术/商务/评审办法' },
+      { name: '5、合同初稿检查', desc: '标准物料⑤ 转分包/违约/付款进度' },
+      { name: '8、选型依据材料', desc: '标准物料⑧ 集采不满足理由/询价/厂商回执' },
+      { name: '10、三有证明材料', desc: '标准物料⑩ 需求/资信/资金来源' },
+      { name: '11、投标文件', desc: '标准物料⑪ 商务标/技术标/价格标组卷' },
+      { name: '12、增值服务承诺', desc: '标准物料⑫ 承诺事项与兑现依据' },
+      { name: '6、ICT项目标前评审会会议纪要及评审要点表', desc: '标准物料⑥ 官方版评审输出，签约依据' },
+      { name: '内控及管理速查表', desc: '官方附件8 方案评审-事前审批-协议级立项全流程（300万/1000万分级）' },
+      { name: '7、上会材料PPT提纲', desc: '标准物料⑦ 官方 9 页汇报结构（与第 9 项同源）' },
+      { name: '9、上会PPT模版', desc: '标准物料⑨ 官方 9 页结构，1000万以上项目必备' }
+    ]
+  },
+  {
+    key: 'signing', name: '签约', fullName: '签约阶段',
+    bpm: 'BPM 05② 中标签约',
+    workflow: '中标签约，标前评审会会议纪要作为签约依据',
+    duty: '方案经理',
+    cycle: '—（按合同约定）',
+    guide: [
+      '1、中标签约，标前评审会会议纪要作为签约依据',
+      '2、完成签约及交付资料前置准备（中标后30天内完成）'
+    ],
+    deliverables: '标前评审会会议纪要、合同',
+    cloudContact: '信产',
+    midRole: '—',
+    materials: [
+      { name: '6、ICT项目标前评审会会议纪要及评审要点表', desc: '标准物料⑥ 官方版，签约依据，含八节会议内容与评审要点表' },
+      { name: '5、合同初稿检查', desc: '标准物料⑤ 签约前复核转分包/违约/付款' },
+      { name: '2、项目业财解析模版', desc: '标准物料② 签约金额与税率复核' }
+    ]
+  },
+  {
+    key: 'delivery', name: '交付', fullName: '交付阶段',
+    bpm: 'BPM 06 项目启动（录入业务解构+交付接管）→ 07 项目采购',
+    workflow: '录入业务解构 → 交付接管（核心）→ 立项+直接采购',
+    duty: '方案经理（录入业务解构）→ 项目经理（交付接管+采购）',
+    cycle: '0.5天 + 1-3天 + 1-2周',
+    guide: [
+      '1、BPM系统录入业务解构（合同解析、业务解构、采购需求、实施计划）',
+      '2、中标阶段介入，提前准备交付资料；签约后客户对接、启动交付',
+      '3、项目立项，根据标前评审结果直接采购（不重复评审）'
+    ],
+    deliverables: '业务解构表（06）、交付准备清单（06）、采购立项单（07）',
+    cloudContact: '孙垚（信产）',
+    midRole: 'PM负责制一窗对外，售中统筹',
+    materials: [
+      { name: '业务解构表', desc: '合同解析/业务解构/采购需求/实施计划' },
+      { name: 'ICT投资项目立项要求', desc: '官方附件7 协议级立项五类场景与立项方式判定' },
+      { name: '交付准备清单', desc: '交付资料前置准备' },
+      { name: '采购立项单', desc: '直接采购立项依据' }
+    ]
+  },
+  {
+    key: 'payment', name: '回款', fullName: '回款阶段',
+    bpm: '合同约定回款节点（非BPM节点）',
+    workflow: '按合同约定进行回款时间提醒',
+    duty: '客户经理',
+    cycle: '按合同约定',
+    guide: [
+      '1、按合同约定回款节点进行提醒',
+      '2、逾期回款及时跟进并记录'
+    ],
+    deliverables: '回款计划表、催款函',
+    cloudContact: '—',
+    midRole: '—',
+    materials: [
+      { name: '回款计划表', desc: '按合同约定的回款节点与金额' },
+      { name: '催款函模板', desc: '逾期回款标准催款函格式' }
+    ]
+  }
+];
+
+// 首页流程总览简称
+const BPM_SHORT = {
+  preSelection: 'BPM 01-04 商机 → 遴选 → 方案',
+  bidding: 'BPM 05① 标前评审会（2-3天）',
+  signing: 'BPM 05② 中标签约',
+  delivery: 'BPM 06 项目启动 + 07 项目采购',
+  payment: '合同约定回款节点'
+};
+
+// ===== 头部签约项目种子数据（来源：26年省管及地市信产签约.xlsx，头部/纵向=头部）=====
+// 格式化为看板 project 对象 schema，已签约项目 preSelection/bidding/signing 三阶段完成
+// 合同金额=合同签约金额（含税），DICT=合同DICT收入总金额（不含税）
+// 纵向项目（各地市人保续保、智慧云呼等）不在此导入
+function seedHeadProjects() {
+  const mk = (name, cust, desc, amt, pm, dept, signDate, contractCode, dictAmt, period) => ({
+    id: 'head_' + contractCode,
+    name,
+    description: `${cust} · ${desc} · 合同额 ¥${(amt/10000).toFixed(2)}万${dictAmt ? ' · DICT ¥' + (dictAmt/10000).toFixed(2) + '万' : ''}${period ? ' · 期间 ' + period : ''}${contractCode ? ' · 合同号 ' + contractCode : ''}`,
+    accountManager: pm,
+    industryDirector: dept && dept !== '—' ? dept : '',
+    status: 'active',
+    stages: {
+      preSelection: { preSelectionDone: '2026-01-01', completed: true, started: true },
+      bidding: { bidDate: '2026-02-01', bidResult: 'won', completed: true, started: true },
+      signing: { signDate: signDate || '', completed: true, started: !!signDate },
+      delivery: { started: false },
+      payment: { started: false }
+    }
+  });
+  return [
+    mk('大模型平台建设项目合同', '陕西重型汽车有限公司', '集团数智签约', 1790000, '王雯', '金融行业事业部', '', 'UEJCA2602094EGN00', 132075.47, '202606'),
+    mk('高速公路联网收费系统业务支撑平台运维合同', '陕西省高速公路收费中心', '项目审批中', 1786000, '师雪健', '政务行业拓展部', '2026-07-09', 'SNXCZ2600361EGN00', 801886.79, '202606'),
+    mk('2026年省级视频云联网监测系统公有云资源及传输网络租用', '陕西省高速公路收费中心', '集团数智签约(集团未统计到)', 2970000, '庞博', '', '', 'UEJCA2602603EGN00', 280188.68, '手工加'),
+    mk('西安高铁东站智慧交通项目软件开发服务合同', '中徽建技术有限公司', '头部项目', 40152049.61, '王磊', '交通物流行业事业部', '2026-07-31', 'SNXCZ2600404EGY00', 31995911.01, '202606'),
+    mk('西安高铁东站智慧交通项目设备采购合同', '中徽建技术有限公司', '头部项目·DICT收入为0（设备采购）', 10494534.20, '王磊', '交通物流行业事业部', '2026-07-31', 'SNXCZ2600405BGY00', 0, '202606')
+  ];
+}
+
+// ===== 标准物料库（依据《标准物料包 1~12》与 BPM 节点产出物）=====
+// fmt：Excel → sheets（支持 merges / cols）；Word → doc（HTML 版 .doc，Word / WPS 均可直接编辑）
+const CLOUD_SHEET = "'云网资源、服务及标品'";
+// 按类型汇总云网资源表收入列(I)或支出列(K)
+const sumifCloud = (type, col) => `=SUMIF(${CLOUD_SHEET}!$B:$B,"${type}",${CLOUD_SHEET}!$${col}:$${col})`;
+// 生成 n 行空白明细，r 为 Excel 实际行号（表头为第1行）
+// r 从 3 开始（前两行为标题、表头），r 即公式应指向的 sheet 行号
+const blankRows = (n, builder) => Array.from({ length: n }, (_, i) => builder(i + 3));
+
+const HW_HEAD = ['序号','设备类型','设备名称','品牌（原厂商）','设备型号','技术规格','单位','数量','前向收入单价（元）','前向收入合计（元）','后向支出单价（元）','后向支出合计（元）','实施方式','物料编码'];
+const SW_HEAD = ['序号','一级（平台/系统）','二级（子系统/子模块）','三级（功能点）','功能描述','前向收入合计（元）','后向支出合计（元）','实施方式','中国电信能力名称','统一编码'];
+const CL_HEAD = ['序号','类型','产品名称','规格描述','厂商','单位','数量','前向收入单价（元）','前向收入合计（元）','后向支出单价（元）','后向支出合计（元）','实施方式','产品编码'];
+const CLOUD_TYPES = [
+  ['标品','标准化产品，可直接销售'],
+  ['云网资源（非标品、外部资源）','外部云网资源采购'],
+  ['集成服务','多产品集成实施'],
+  ['维保服务','含软、硬、软硬一体三类'],
+  ['开发服务','定制开发'],
+  ['外包服务','整体外包'],
+  ['云网托管服务','托管运营'],
+  ['自主交付服务（云网运）','自有队伍交付'],
+  ['其他','其余相关服务']
+];
+// 能力来源矩阵（官方云网表 U1:AF1 表头，第 2 行全部"电信自有"，第 3 行 V-AF 为"外采"）
+const CLOUD_SRC = ['标品','云网资源（非标品、外部资源）','其他','开发服务','外包服务','云网托管服务','集成服务','维保服务','维保服务-软件','维保服务-软硬一体','其他服务','自主交付服务（云网运）'];
+
+// ===== 投资类业财解析（官方附件1：混合型/纯投资型 × 1年/多年进收）=====
+const INV_COST_ROWS = ['维保/等保/密评成本','集成服务成本','设备租赁','资金成本（合同期大于1年须考虑资金成本）','其他成本（若涉及其他成本可自行增加行项）'];
+// 官方 F/J 列填表说明（键为 Excel 行号）
+const INV_NOTES = {2:'◆ 填写标绿部分，并按要求对效益情况进行说明',3:'◆ 测算数据均使用不含税价，收入请填写分成后不含税价',4:'◆ 投资金额合计=折旧金额合计，请填写后检查金额是否一致',5:'◆ 合同期大于1年须考虑资金成本（模拟计息利率为2%）',6:'◆ 注意收支进度、垫资问题',8:'财务指标说明：',9:'◆ 毛利率=（主营业务收入-主营业务成本）/主营业务收入',10:'◆ 静态回收期：是指以投资项目经营净现金流量抵偿原始总投资所需要的全部时间',11:'◆ 投资回报率=年利润或年均利润/投资总额',12:'◆ 收投比=政企销售项目合同总收入/(政企销售项目投资总批复+政企销售项目集成服务预算）',13:'◆一年期项目无资金成本'};
+// 1年进收 sheet（pure=纯投资型：付现成本各行置"/"；收投比分母仅含投资）
+const invYearRows = (title, pure) => {
+  const rows = [
+    [title,'合同期1年','全生命期（以合同期为准）','投资折旧金额校验','备注','填表说明：'],
+    ['','2025','','','',''],
+    ['一、收入','','=SUM(B3:B3)','','',''],
+    ['二、投资','','=SUM(B4:B4)','','',''],
+    ['三、成本（折旧+付现成本）','=B6+B7','=SUM(B5:B5)','','',''],
+    ['1.折旧','=B4','=SUM(B6:B6)','=C6-C4','',''],
+    ['2.付现成本','=SUM(B8:B12)','=SUM(B7:B7)','','','']
+  ];
+  INV_COST_ROWS.forEach((label, i) => {
+    const r = 8 + i;
+    rows.push([label, (pure || r === 11) ? '/' : '', `=SUM(B${r}:B${r})`,'','','']);
+  });
+  rows.push(
+    ['四、营业利润（收入-成本）','=B3-B5','=SUM(B13:B13)','','',''],
+    ['五、现金流（流入-流出）','=B15-B16','=C15-C16','','',''],
+    ['现金流入','=B3','=SUM(B15:B15)','','',''],
+    ['现金流出','=B4+B7','=SUM(B16:B16)','','',''],
+    ['五、财务指标','','','','',''],
+    ['毛利率（营业利润/收入）','=B13/B3','=C13/C3','','',''],
+    ['静态回收期（根据累计现金流量来确定回收期，收回前一年年数+差额/当年流量）','平均净现金流量计算静态回收期为X年','','','',''],
+    ['年投资回报率','=B13/$C$4','=C13/C4','','',''],
+    ['收投比','',`=C3/${pure ? '(C4)' : '(C4+C8+C9+C10+C12)'}`,'','',''],
+    ['','','','','','合同期为1年']
+  );
+  rows[1][5] = INV_NOTES[2]; rows[2][5] = INV_NOTES[3]; rows[3][5] = INV_NOTES[4];
+  rows[4][5] = INV_NOTES[5]; rows[5][5] = INV_NOTES[6];
+  rows[7][5] = ''; rows[8][5] = INV_NOTES[8]; rows[9][5] = INV_NOTES[9];
+  rows[10][5] = INV_NOTES[10]; rows[11][5] = INV_NOTES[11]; rows[12][5] = INV_NOTES[12]; rows[13][5] = INV_NOTES[13];
+  return rows;
+};
+// 多年进收 sheet（B-F 为合同期1-5年，G 全生命期；折旧按投资/5、资金成本按投资*2%）
+const invMultiRows = (title, pure) => {
+  const Y = ['B','C','D','E','F'];
+  const sum = r => `=SUM(B${r}:F${r})`;
+  const rows = [
+    [title,'合同期1年','合同期2年','合同期3年','合同期4年','合同期5年','全生命期（以合同期为准）','投资折旧金额校验','备注','填表说明：'],
+    ['','2025','2026','2027','2028','2029','','','',''],
+    ['一、收入','','','','','',sum(3),'','',''],
+    ['二、投资','','','','','',sum(4),'','',''],
+    ['三、成本（折旧+付现成本）',...Y.map(c => `=${c}6+${c}7`),sum(5),'','',''],
+    ['1.折旧',...Y.map(() => '=$B$4/5'),sum(6),'=G6-G4','',''],
+    ['2.付现成本',...Y.map(c => `=SUM(${c}8:${c}12)`),sum(7),'','','']
+  ];
+  INV_COST_ROWS.forEach((label, i) => {
+    const r = 8 + i;
+    rows.push([label, ...(r === 11 ? Y.map(() => '=$B$4*2%') : Y.map(() => '')), sum(r),'','','']);
+  });
+  rows.push(
+    ['四、营业利润（收入-成本）',...Y.map(c => `=${c}3-${c}5`),sum(13),'','',''],
+    ['五、现金流（流入-流出）',...Y.map(c => `=${c}15-${c}16`),sum(14),'','',''],
+    ['现金流入',...Y.map(c => `=${c}3`),sum(15),'','',''],
+    ['现金流出',...Y.map(c => `=${c}4+${c}7`),sum(16),'','',''],
+    ['五、财务指标','','','','','','','','',''],
+    ['毛利率（营业利润/收入）',...Y.map(c => `=${c}13/${c}3`),'=G13/G3','','',''],
+    ['静态回收期（根据累计现金流量来确定回收期，收回前一年年数+差额/当年流量）','平均净现金流量计算静态回收期为X年','','','','','','','',''],
+    ['年投资回报率',...Y.map(c => `=${c}13/$G$4`),'=G13/G4','','',''],
+    ['收投比','','','','','',`=G3/${pure ? '(G4)' : '(G4+G9+G8+G12+G10)'}`,'','',''],
+    ['','','','','','','','','','例：合同期为5年']
+  );
+  for (const [r, txt] of [[2,INV_NOTES[2]],[3,INV_NOTES[3]],[4,INV_NOTES[4]],[5,INV_NOTES[5]],[6,INV_NOTES[6]],[8,INV_NOTES[8]],[9,INV_NOTES[9]],[10,INV_NOTES[10]],[11,INV_NOTES[11]],[12,INV_NOTES[12]]]) rows[r-1][9] = txt;
+  if (pure) rows.push(  // 纯投资型多年版官方附加说明（A24/A25/A28/A29）
+    ['','','','','','','','','',''],
+    ['政企销售项目投资总批复，是取投资项目的批复金额','','','','','','','','',''],
+    ['政企销售项目集成服务预算　：取协议级项目系统的子项目信息关联的WBS中的直接成本预算，按投资批复金额分摊','','','','','','','','',''],
+    ['','','','','','','','','',''],
+    ['','','','','','','','','',''],
+    ['1.收入=政企销售合同总收入金额','','','','','','','','',''],
+    ['2.投入=政企销售项目投资总批复+政企销售项目集成服务预算','','','','','','','','','']
+  );
+  return rows;
+};
+
+// ===== 官方上会PPT模版 9 页结构（附件9），第 7/9 项物料共用 =====
+const PPT_PAGES = [
+  ['封面','202X年陕西电信 XX 项目（项目名称、汇报单位、汇报人、日期）','—'],
+  ['项目背景及必要性','一、项目背景及需求：项目属性、行业属性、投资属性、客户信息及云网能力与运维需求；二、实施必要性：项目价值、战略意义','BPM商机单、三有证明材料'],
+  ['项目方案','依据项目实施方案说明整体方案：由需求及场景触发分析形成解决方案，明确架构-能力-技术方案（大网调用/新建能力/组合调用机制）','项目实施方案模板'],
+  ['方案解构及收支明细','对项目方案解构具体明细和收入支出情况进行说明','方案解构模版'],
+  ['效益评估','根据项目实际收支情况，结合对应业财解析表（一年或多年、单一投资或混合型）内容体现','项目业财解析模版'],
+  ['项目评分及收入承诺（战略及低效益项目）','低效益项目及战略项目需提供评分表及收入承诺函对项目情况进行明确','项目评分表、收入承诺函'],
+  ['实施条件及进度','实施条件论证：云资源、网络及端口资源、机房配套资源、人员组织（交付经理）；资产归属/接收、运营/运维单位；项目进度计划','内控及管理速查表'],
+  ['待决策事项','根据项目实际情况，若存在其他待决策事项需上会的在本页说明并提供对应参考材料','—'],
+  ['投资必问效','投资效益跟踪与后评价要求','—']
+];
+
+const MATERIAL_TEMPLATES = {
+  /* ---------- 标前遴选阶段 ---------- */
+  '标前遴选纪要表': { fmt:'Excel', sheets:[
+    { name:'遴选纪要', cols:[18,50], rows:[
+      ['项目','内容'],['会议时间',''],['会议地点',''],['主持人',''],['参会人员',''],
+      ['遴选路径','短名单库/公开招募/单一来源'],['合作伙伴确定',''],['备注','']] },
+    { name:'遴选路径', cols:[16,52], rows:[
+      ['路径','流程说明'],['短名单库','请示签批→评审方案制定→专家评审→结果签报'],
+      ['公开招募','请示招募签报→专家评审→结果公示'],['单一来源','单一来源审批']] }] },
+
+  '1、方案解构模版': { fmt:'Excel', sheets:[
+    { name:'总表', cols:[31.7,19.4,21.5,21.5,8.9,68],
+      merges:['A1:D1','A2:B2','A3:B3','A4:B4','A5:B5','A6:B6','A7:B7','A8:B8','A9:B9','A10:B10','A11:B11'], rows:[
+      ['总表'],
+      ['分类','','预计收入合计（元）','预计支出合计（元）','','注：总表中服务分三类——集成服务、维保服务、其他；维保服务含软、硬、软硬一体三种，其余相关服务均归为其他，从解构详情里可查看各项相关费用'],
+      ['硬件部分','','=IFERROR(SUM(硬件!$J:$J),0)','=IFERROR(SUM(硬件!$L:$L),0)'],
+      ['软件部分','','=IFERROR(SUM(软件!$F:$F),0)','=IFERROR(SUM(软件!$G:$G),0)'],
+      ['标品','',sumifCloud('标品','I'),sumifCloud('标品','K')],
+      ['服务_集成服务','',sumifCloud('集成服务','I'),sumifCloud('集成服务','K')],
+      ['服务_维保服务','',`=SUM(SUMIFS(${CLOUD_SHEET}!$I:$I,${CLOUD_SHEET}!$B:$B,{"维保服务"}))`,
+                      `=SUM(SUMIFS(${CLOUD_SHEET}!$K:$K,${CLOUD_SHEET}!$B:$B,{"维保服务"}))`],
+      ['服务_其他','',`=SUM(SUMIFS(${CLOUD_SHEET}!$I:$I,${CLOUD_SHEET}!$B:$B,{"开发服务","外包服务","云网托管服务","自主交付服务（云网运）"}))`,
+                    `=SUM(SUMIFS(${CLOUD_SHEET}!$K:$K,${CLOUD_SHEET}!$B:$B,{"开发服务","外包服务","云网托管服务","自主交付服务（云网运）"}))`],
+      ['云网资源（非标品、外部资源）','',sumifCloud('云网资源（非标品、外部资源）','I'),sumifCloud('云网资源（非标品、外部资源）','K')],
+      ['其他','',sumifCloud('其他','I'),sumifCloud('其他','K')],
+      ['合计（元）','','=SUM(C3:C10)','=SUM(D3:D10)']
+    ] },
+    { name:'硬件', cols:[6,12,16,16,14,30,8,8,15,15,15,15,14,14], merges:['A1:N1'], rows:[
+      ['硬件部分'], HW_HEAD,
+      ...blankRows(10, r => [r-2,'','','','','','','',`=H${r}*I${r}`,'',`=H${r}*K${r}`,'',''])
+    ] },
+    { name:'软件', cols:[6,18,20,18,40,15,15,14,18,14], merges:['A1:J1'], rows:[
+      ['软件部分'], SW_HEAD,
+      ...blankRows(10, r => [r-2,'','','','','','','','',''])
+    ] },
+    // 官方 20260825 版：类型枚举内嵌本表 P 列，能力来源矩阵见 U1:AF3
+    { name:'云网资源、服务及标品', cols:[6,26,20,24,16,8,8,15,15,15,15,14,14], merges:['A1:M1'], rows:[
+      ['云网资源、服务及标品','','','','','','','','','','','','','','','类型','','','','',...CLOUD_SRC],
+      CL_HEAD.concat(['','','标品','','','','',...CLOUD_SRC.map(() => '电信自有')]),
+      ...blankRows(15, r => {
+        const row = [r-2,'','','','','','','',`=G${r}*H${r}`,'',`=G${r}*J${r}`,'',''];
+        if (r <= 10) row[15] = CLOUD_TYPES[r-2][0];                 // P 列类型枚举（P2:P10）
+        if (r === 3) for (let c = 21; c <= 31; c++) row[c] = '外采'; // V3:AF3 能力来源为"外采"
+        return row;
+      })
+    ] }
+  ] },
+
+  '3、方案评审表': { fmt:'Excel', sheets:[{ name:'方案评审表', cols:[22,12,12,12,50], merges:['A1:E1','A3:E3'], rows:[
+    ['方案评审表（不含自有能力）'],
+    ['项目名称','','客户名称','','商机编码','','评审日期',''],
+    ['说明：本表仅评审合作伙伴及外购能力，不含自有能力；综合得分＝Σ(权重×得分)，满分5分，低于3分不通过。'],
+    ['评审维度','权重（%）','得分（1-5）','加权得分','评审意见'],
+    ['需求覆盖度',20,'','=B5/100*C5',''],
+    ['技术方案可行性',20,'','=B6/100*C6',''],
+    ['七融卡位',15,'','=B7/100*C7',''],
+    ['行业适配性',15,'','=B8/100*C8',''],
+    ['交付可行性',15,'','=B9/100*C9',''],
+    ['商务与成本',15,'','=B10/100*C10',''],
+    ['风险与合规（否决项）','—','','','是否存在转分包、回款、交付重大风险'],
+    ['综合得分','','','=SUM(D5:D10)',''],
+    ['评审结论','通过 / 有条件通过 / 不通过','','',''],
+    ['会审部门','意见','','签字','日期'],
+    ['财务部','','','',''],['政企信息事业群','','','',''],['云中台','','','',''],
+    ['采购中心','','','',''],['企发部','','','',''],['网发部','','','','']
+  ] }] },
+
+  /* ---------- 投标阶段 ---------- */
+  '标前评审资料清单': { fmt:'Excel', sheets:[{ name:'资料清单', cols:[8,34,10,10,12,16], rows:[
+    ['序号','资料名称','格式','是否必需','准备状态','责任人'],
+    ['1','方案解构模版','Excel','必需','',''],
+    ['2','项目业财解析模版','Excel','必需','',''],
+    ['3','方案评审表（不含自有能力）','Excel','必需','',''],
+    ['4','招标文件要点检查','Word','必需','',''],
+    ['5','合同初稿检查','Word','必需','',''],
+    ['6','ICT项目标前评审会会议纪要及评审要点表','Word','必需','',''],
+    ['7','上会材料PPT提纲','Excel','非必需','',''],
+    ['8','选型依据材料','Word','必需','',''],
+    ['9','上会PPT模版','Word','非必需（1000万以上必备）','',''],
+    ['10','三有证明材料','Word','必需','',''],
+    ['11','投标文件','Word','必需','',''],
+    ['12','增值服务承诺','Word','必需','',''],
+    ['—','合计','','10 项必需 / 2 项非必需','','']
+  ] }] },
+
+  '2、项目业财解析模版': { fmt:'Excel', sheets:[
+    { name:'解析模版 (3)', cols:[17.6,9.5,14.3,9.6,11.8,8,9.3,10.6,11.6,12,13,9.4],
+      merges:['A1:L1','A2:L2','A3:A4','C3:D3','C4:D4','B5:L5','A6:L6','A7:A8','B7:F7','G7:J7','K7:K8','L7:L8','A18:L18','C19:D19','C20:D20','C21:D21','C22:D22','C23:D23','C24:D24','C25:D25','A26:B26','C26:E26','F26:G26','A27:L27','C28:L28','C29:L29','C30:L30','C31:L31','C32:L32','C33:L33','C34:L34'], rows:[
+      ['财务前置会审模版'],
+      ['一、基本情况信息'],
+      ['项目情况','商机编码','','','客户名称','','签约年限','','分公司','','是否公开招标',''],
+      ['','商机名称','','','签约金额','','客户经理','','资产权属','','会审日期',''],
+      ['项目简介','','','','','','','','','','',''],
+      ['二、项目内容解构（地市公司业务部门填写，中台、财务把关）'],
+      ['项目包含内容','收入','','','','','支出','','','','能力来源','业务模式'],
+      ['','金额','税率','不含税','列收原则','列收方式','金额','税率','不含税','支出类型','',''],
+      ['1、硬件设备（含成品软件）','','0.13','=B9/(1+C9)','净额法--代收代付','时点法','','0.13','=G9/(1+H9)','投资','甲方指定','设备买卖业务模式'],
+      ['2、软件部分','','0.06','=B10/(1+C10)','总额法','时点法','','0.06','=G10/(1+H10)','成本（外采）','合作伙伴遴选','服务整合业务模式'],
+      ['3、云网资源','','6%/9%','','净额法--合作分成','时点法','','0.13','=G11/(1+H11)','成本（调用原子能力）','公开招标','服务整合业务模式'],
+      ['4、服务-集成服务','','0.06','=B12/(1+C12)','净额法--合作分成','','','0.06','=G12/(1+H12)','合作分成','原子能力','服务整合业务模式'],
+      ['5、维保服务','','0.06','=B13/(1+C13)','净额法--合作分成','','','','','代采代购','','服务整合业务模式'],
+      ['6、标品','','0.06','','净额法--合作分成','','','','','','','服务整合业务模式'],
+      ['6、服务','','0.06','=B15/(1+C15)','净额法--合作分成','','','0.06','=G15/(1+H15)','','','服务整合业务模式'],
+      ['7、其他','','0.06','=B16/(1+C16)','净额法--合作分成','','','','','','','服务整合业务模式'],
+      ['合计','=SUM(B9:B16)','','=SUM(D9:D16)','','','=SUM(G9:G16)','','=SUM(I9:I16)','','=SUM(K9:K16)','=SUM(L9:L16)'],
+      ['三、项目财务收益及资金流（地市公司业务部门提供，财务部门审核确认）'],
+      ['1、项目收入概况','不含税','2.项目支出概况','','不含税','年份','项目期','项目资金流入（含税）','项目资金流出（含税）','净现金流','累计净现金流','回款期'],
+      ['1.1项目主营收入','','2.1项目集成服务支出','','','0','其中：建设期','','','=H20-I20','=J20',''],
+      ['1.1.1 标品收入','=B11+B14','','','','1','第一期','','','=H21-I21','=K20+J21',''],
+      ['1.2 项目非主营收入','','2.2项目非主营支出','','','2','第二期','','','=H22-I22','=K21+J22',''],
+      ['收入小计','=B22+B20','支出小计','','=E20+E22','3','第三期','','','=H23-I23','=K22+J23',''],
+      ['项目毛利总额','=(B23-B21)-E23','项目毛利率','','=B24/(B23-B21)','','4','第四期','','','=H24-I24','=K23+J24',''],
+      ['代收代付金额','','合作分成金额','','','5','第五期','','','=H25-I25','=K24+J25',''],
+      ['项目合计金额（不含税）','','=B23+B25+E25','','','合计','','','','','',''],
+      ['四、会审意见'],
+      ['部门','同意/不同意','会审意见','','','','','','','','',''],
+      ['财务部','','','','','','','','','','',''],
+      ['政企信息事业群','','','','','','','','','','',''],
+      ['云中台','','','','','','','','','','',''],
+      ['采购中心','','','','','','','','','','',''],
+      ['企发部','','','','','','','','','','',''],
+      ['网发部','','','','','','','','','','','']
+    ] },
+    { name:'枚举值', cols:[18,26,26,20,26], rows:[
+      ['列收原则','列收方式','业务模式','支出类型','能力来源'],
+      ['总额法','时点法','投资-经营租赁业务模式','投资','甲方指定'],
+      ['净额法--合作分成','时段法','投资-集成服务业务模式','成本（外采）','合作伙伴遴选'],
+      ['净额法--代收代付','周期型','设备经销商租赁业务模式','成本（调用原子能力）','公开招标'],
+      ['','非周期型','设备买卖业务模式','合作分成','原子能力'],
+      ['','投入法','服务整合业务模式','代采代购',''],
+      ['','产出法','设备受托代购业务模式','',''],
+      ['','不涉及','设备转租赁业务模式','',''],
+      ['','','服务代理业务模式','',''],
+      ['','','设备与第三方合作业务模式','','']
+    ] }
+  ] },
+
+  '4、招标文件要点检查': { fmt:'Word', doc:{ title:'招标文件要点检查表', intro:'依据标准物料包第4项编制。标前评审前逐条核对招标文件关键条款，否决项不满足即不投标。', sections:[
+    { h:'一、资格与合规', table:{ head:['检查项','核查要点','结论'], rows:[
+      ['投标人资格条件','是否满足主体资格、行业资质要求',''],
+      ['联合体投标','是否接受联合体，牵头方要求',''],
+      ['分包 / 转分包','是否允许分包，是否存在不得转分包条款',''],
+      ['业绩要求','近三年同类项目业绩数量与金额',''],
+      ['否决项','废标条款逐条确认','']] } },
+    { h:'二、技术规范', table:{ head:['检查项','核查要点','结论'], rows:[
+      ['技术参数','是否指向特定品牌/型号，可否正偏离',''],
+      ['交付范围','建设内容、站点数量、接口范围',''],
+      ['验收标准','验收条件、验收周期、验收资料',''],
+      ['工期要求','开工时间、里程碑、逾期违约责任','']] } },
+    { h:'三、商务条款', table:{ head:['检查项','核查要点','结论'], rows:[
+      ['最高限价','预算金额与最高限价，是否含税',''],
+      ['付款条件','预付款比例、进度款节点、验收款、质保金',''],
+      ['保证金','投标保证金、履约保证金金额与退还条件',''],
+      ['质保期','质保年限及售后响应要求','']] } },
+    { h:'四、评审办法', table:{ head:['检查项','核查要点','结论'], rows:[
+      ['评标方法','综合评分法 / 最低价法',''],
+      ['价格分','价格分计算方式与基准价规则',''],
+      ['技术分','技术分权重及评分细则',''],
+      ['加分项','增值服务、本地化服务等加分条件','']] } },
+    { h:'五、风险提示', table:{ head:['风险项','说明','处理建议'], rows:[
+      ['知识产权','成果归属与授权范围',''],
+      ['保密要求','保密期限与违约责任',''],
+      ['违约责任','违约金比例上限','']] } }
+  ] } },
+
+  '5、合同初稿检查': { fmt:'Word', doc:{ title:'合同初稿检查表', intro:'依据标准物料包第5项编制，重点核查不得转分包条款、违约条款、付款进度，并与业财解析表保持一致。', sections:[
+    { h:'一、主体与标的', table:{ head:['检查项','合同约定','结论'], rows:[
+      ['签约主体','与中标人、投标主体是否一致',''],
+      ['标的范围','与投标文件、招标文件是否一致',''],
+      ['合同金额','含税/不含税金额、税率是否与业财解析一致','']] } },
+    { h:'二、转分包条款（重点）', table:{ head:['检查项','合同约定','风险等级'], rows:[
+      ['是否存在不得转分包条款','明确禁止或需甲方书面同意',''],
+      ['允许分包范围','分包内容、比例、审批流程',''],
+      ['背靠背条款','付款是否以业主付款为前提',''],
+      ['分包商资质','对分包商资质的要求','']] } },
+    { h:'三、付款进度（重点）', table:{ head:['节点','比例','条件','与业财解析一致性'], rows:[
+      ['预付款','','',''],
+      ['进度款','','',''],
+      ['验收款','','',''],
+      ['质保金','','','']] } },
+    { h:'四、违约与争议（重点）', table:{ head:['检查项','合同约定','风险等级'], rows:[
+      ['逾期交付违约金','比例/上限',''],
+      ['逾期付款责任','我方催款依据',''],
+      ['质量违约责任','返工、赔偿范围',''],
+      ['争议解决','诉讼/仲裁地点','']] } },
+    { h:'五、其他条款', table:{ head:['检查项','合同约定','结论'], rows:[
+      ['交付期','与实施计划匹配',''],
+      ['验收标准','与招标文件一致',''],
+      ['保密与知识产权','成果归属',''],
+      ['合同生效条件','签字盖章/预付款到账','']] } }
+  ] } },
+
+  '8、选型依据材料': { fmt:'Word', doc:{ title:'选型依据材料', intro:'依据标准物料包第8项编制，用于说明集采不满足理由、外部询价过程及厂商回执。', sections:[
+    { h:'一、集采不满足理由', table:{ head:['事项','说明','附件'], rows:[
+      ['集采目录范围','拟采购内容是否在集采目录内',''],
+      ['不满足的具体原因','技术参数/交付时限/区域服务等',''],
+      ['审批情况','是否履行例外审批及审批文号','']] } },
+    { h:'二、外部询价记录', table:{ head:['序号','厂商名称','报价（元）','报价日期','有效期','备注'], rows:[
+      ['1','','','','',''],['2','','','','',''],['3','','','','','']] } },
+    { h:'三、厂商回执', table:{ head:['厂商','回执类型','回执日期','有效期','附件'], rows:[
+      ['','授权函/报价回执','','',''],['','','','','']] } },
+    { h:'四、选型结论', p:'综合价格、能力匹配度、交付保障、售后响应，推荐选型厂商及理由，并说明与方案解构、业财解析的对应关系。' }
+  ] } },
+
+  '10、三有证明材料': { fmt:'Word', doc:{ title:'三有证明材料', intro:'依据标准物料包第10项编制，落实“有需求、有资金、有资信”。', sections:[
+    { h:'一、客户需求清单', table:{ head:['序号','需求项','需求来源文件','优先级'], rows:[
+      ['1','','',''],['2','','',''],['3','','','']] } },
+    { h:'二、客户资信', table:{ head:['事项','内容','证明文件'], rows:[
+      ['客户主体','单位名称、统一社会信用代码',''],
+      ['资信评级','评级结果/信用报告',''],
+      ['历史合作','同类项目履约情况',''],
+      ['付款记录','历史回款是否及时','']] } },
+    { h:'三、资金来源落实情况', table:{ head:['事项','内容','证明文件'], rows:[
+      ['资金性质','财政资金/自筹资金',''],
+      ['预算文号','预算批复文件名称及文号',''],
+      ['到位时间','资金计划到位时间',''],
+      ['支付路径','付款主体与结算方式','']] } },
+    { h:'四、附件清单', p:'客户需求确认函、信用报告、预算批复或资金来源证明、历史合同及回款凭证等。' }
+  ] } },
+
+  '11、投标文件': { fmt:'Word', doc:{ title:'投标文件编制模板', intro:'依据标准物料包第11项编制，按商务标、技术标、价格标三部分组卷。', sections:[
+    { h:'一、投标文件组成', table:{ head:['分册','主要内容','份数'], rows:[
+      ['商务标','投标函、法定代表人授权、资格证明、业绩、财务',''],
+      ['技术标','需求响应、技术方案、实施计划、服务承诺',''],
+      ['价格标','开标一览表、分项报价表',''],
+      ['电子版','U盘/平台上传，按招标文件要求','']] } },
+    { h:'二、编制检查表', table:{ head:['序号','检查项','要点','完成'], rows:[
+      ['1','资质文件','营业执照、资质证书在有效期内',''],
+      ['2','业绩证明','合同关键页+验收证明',''],
+      ['3','人员配置','项目经理及团队社保/证书',''],
+      ['4','技术偏离表','逐条响应，无负偏离',''],
+      ['5','报价表','与业财解析成本口径一致',''],
+      ['6','增值服务承诺','承诺内容有依据、可兑现',''],
+      ['7','密封与份数','正副本份数、密封签字盖章',''],
+      ['8','递交时间','不迟于投标截止时间','']] } }
+  ] } },
+
+  '12、增值服务承诺': { fmt:'Word', doc:{ title:'增值服务承诺', intro:'依据标准物料包第12项编制，承诺内容须有依据、可量化、可考核。', sections:[
+    { h:'一、承诺事项清单', table:{ head:['序号','承诺内容','服务标准','响应时限','依据材料'], rows:[
+      ['1','','','',''],['2','','','',''],['3','','','','']] } },
+    { h:'二、兑现保障', table:{ head:['保障措施','责任部门','资源投入','考核方式'], rows:[
+      ['服务团队','','',''],['备件/备品','','',''],['应急响应','','','']] } },
+    { h:'三、未兑现处理', p:'明确未达承诺标准时的补救措施、赔偿方式及客户沟通机制。' }
+  ] } },
+
+  '7、上会材料PPT提纲': { fmt:'Excel', sheets:[{ name:'PPT提纲', cols:[8,30,58,28,16], rows:[
+    ['页序','页面主题','核心内容','数据/材料支撑','备注'],
+    ...PPT_PAGES.map((p, i) => [String(i + 1), p[0], p[1], p[2], '官方 9 页结构'])
+  ] }] },
+
+  '9、上会PPT模版': { fmt:'Word', doc:{ title:'上会PPT模版（9页）', intro:'标准物料⑨ 官方上会PPT模版，1000万以上项目必备；按以下 9 页结构制作汇报 PPT。', sections:
+    PPT_PAGES.map((p, i) => ({ h:`第${i + 1}页 ${p[0]}`, p:`${p[1]}${p[2] === '—' ? '' : `（数据/材料支撑：${p[2]}）`}` }))
+  } },
+
+  '项目实施方案模板': { fmt:'Word', doc:{ title:'项目实施方案模板', intro:'官方附件3。项目名称：XX省/市XX客户XX项目。标前评审前准备材料第 1 项（官方口径）。', sections:[
+    { h:'一、项目概述及需求分析' },
+    { h:'1.1 项目概述', p:'对项目实施的背景、必要性进行分析，说明项目属性、项目所属行业类型、投资属性、客户信息等，如有其他需说明的情况可以自行补充。' },
+    { h:'1.2 需求分析', p:'行业整体业务特征、数字化核心需求及发展概况、企业关键业务流程、痛点及云、网、数、智、安等能力的需求、项目价值、经济与社会效益。' },
+    { h:'二、项目解决方案', p:'基于第一部分客户痛点及需求进行分析，说明为客户提供的解决方案；明确实现的架构-能力-技术方案：大网调用什么能力，新建什么能力，如何组合调用形成什么机制来满足客户的需求，最终以客户什么样的标准可以满足验收。' },
+    { h:'三、项目效益简述', p:'总述项目投资类型，通过预填写业财评审表对效益进行说明（预期签约方式：一年签/多年签/框架/合作分成及比例；是否内部交易；预期成本支出：集成服务支出、维保服务支出、其他成本支出）。' },
+    { h:'四、项目具体方案——投资方案' },
+    { h:'4.1 建设需求', table:{ head:['需求项','内容'], rows:[
+      ['场景需求及网络服务范围',''],
+      ['用户和终端属性','用户（2B/2B+2C、4G/5G、数量）、终端（类型、接入方式、数量）'],
+      ['性能指标要求','时延、吞吐量、承载数等（依据客户业务需求填写）'],
+      ['部署模式','UPF部署模式（共享新建/共享扩容/独享新建/独享扩容）、部署位置及具体地址、设备规格'],
+      ['网络涉及功能需求','']] } },
+    { h:'4.2 网络资源、配套资源现状及方案', p:'是否复用已建共享能力、新建必要性论证、盘活利旧方案分析；机房基础设施、大网端口、线路等资源需求及具备条件，不满足如何实现。' },
+    { h:'4.3 建设方案', p:'设备挂接承载网、连接大网核心网络的方案。' },
+    { h:'4.4 投资估算及清单', p:'区分主设备（核心网、交换机、路由器、防火墙、EMS等）、机房配套，分别说明投资。', table:{ head:['专业分类','设备/系统名称','详细配置及服务要求','数量','单价','投资估算（万元，不含税）'], rows:[['','','','','',''],['','','','','',''],['','','','','','']] } }
+  ] } },
+
+  '项目评分表（低效益及战略项目）': { fmt:'Word', doc:{ title:'低效益及战略项目打分', intro:'官方附件4。总分 100 分，低效益模型最终评分不低于 60 分预通过，预通过项目按 DICT 方案评审相关要求提级审批。', sections:[
+    { h:'一、低效益投资项目评估模型', table:{ head:['项目名称',''], rows:[
+      ['所属部门',''],['项目预计总收入（万元）',''],['项目预计总投入（投资/成本，万元）',''],['项目预计收益情况（收投比/毛利率）','']] } },
+    { h:'客户价值（45分）', table:{ head:['评价参数','评价标准','得分'], rows:[
+      ['客户行业','头部企业/行业重要客户 13-15分；行业一般客户 9-12分；行业初创客户 5-8分；其他客户 1-5分',''],
+      ['客户体量','大型或国家级政企 10分；中型或省市级 8分；小型或区县级 5分；其他微型企业 3分',''],
+      ['客户存量收入','两百万级 10分；百万级 8分；五十万级 5分；十万级 3分',''],
+      ['项目对客户的重要程度','首次ICT突破且含战新 10分；首次ICT突破 8分；非首次但首次含战新 8分；其他非首次 3分','']] } },
+    { h:'市场价值（45分）', table:{ head:['评价参数','评价标准','得分'], rows:[
+      ['项目拉动收入','拉动全业务收入高于500万得满分，高于200万、高于100万依次递减，其余按比例得分',''],
+      ['市场卡位','国家级平台 10分；省级平台 8分；重点城市平台 6分；一般地市级 4分；其他 2分',''],
+      ['运营能力','后续运营能力强（云、大数据中台、网、信创）12-15分；具备扩展/二开能力 7-11分；基本无后续运营（硬件一次性建设）3-6分',''],
+      ['自有能力','陕西公司自有能力/自研平台 10分；集团体系自有能力 7分；完全无自有能力 3分；含七融业务额外加 2分（单项加计，超满分按满分计）','']] } },
+    { h:'经济价值（10分）', table:{ head:['评价参数','评价标准','得分'], rows:[
+      ['项目效益','年内承诺收投比大于考核标准 10分；≥1 且小于考核标准 7分；其余视情况 2分或不得分','']] } },
+    { h:'参评部门及评审意见', table:{ head:['参评部门','评审意见','签批'], rows:[
+      ['财务部','',''],['政企部','',''],['网发部','',''],['云中台','','']] } },
+    { h:'二、战略型投资项目评估模型', table:{ head:['评价维度（权重）','评价标准（摘要）','得分'], rows:[
+      ['战略价值（50分）','行业趋势响应、战略契合度、行业竞争力提升、技术引领与创新、组织能力提升与人才培养，各 10 分制',''],
+      ['市场价值（40分）','市场价值提升（客户层级）、平台层级（省级9/重点城市7/其他地市5/其余2）、收入拉动（9-10/6-8/3-5分档）',''],
+      ['合计（100分）','最终评分按预通过线执行，通过后提级审批','']] } }
+  ] } },
+
+  '项目收入承诺函': { fmt:'Word', doc:{ title:'项目收入承诺函', intro:'官方附件5。低效益及战略项目必备（官方评审材料口径第 5 项），随项目评分表一并提交。', sections:[
+    { h:'一、项目及承诺信息', p:'xx分公司/行业客户部 ____项目，客户名称xx，商机编码xx，总投资金额预计xx万元，成本支出预计xx万元。', table:{ head:['项目','内容'], rows:[
+      ['承诺单位',''],['项目名称',''],['客户名称',''],['商机编码',''],['总投资金额（万元）',''],['成本支出预计（万元）',''],['本期合同期（年）',''],['本期收入（万元）',''],['承诺预计续签（年）',''],['承诺预计续签收入（万元）',''],['项目整体直接收入（含本期及续签，万元）',''],['预计回收期（年）','']] } },
+    { h:'二、具体业务内容及对应直接收入', p:'例：1.集成服务收入：本期收入xx万元、续签收入xx万元；2.数字平台收入：本期收入xx万元、续签收入xx万元。', table:{ head:['业务内容','本期收入（万元）','续签收入（万元）'], rows:[
+      ['集成服务收入','',''],['数字平台收入','',''],['',' ',''],['',' ','']] } },
+    { h:'三、承诺签署', p:'签字盖章：　　　　　　　　　　承诺日期：　　年　　月　　日' }
+  ] } },
+
+  'ICT投资项目立项要求': { fmt:'Word', doc:{ title:'ICT投资项目立项要求（协议级立项及计划建设立项）', intro:'官方附件7。明确ICT投资项目前评估、五类标准场景及立项方式判定，适用于协议级立项环节。', sections:[
+    { h:'一、ICT投资项目前评估', p:'需求发起人员应确保投资立项前完成项目前评估，并在 MSS 协议级项目管理系统中完善预算或商机概算损益前评估信息，明确项目合同签约期限、关联交易等信息。路径：商机管理→商机信息（商机概算评估）；项目管理→项目立项（预算评估）。' },
+    { h:'二、标准场景（五类互斥，一个项目仅选一类）', table:{ head:['场景','适用说明','前评估必填要点'], rows:[
+      ['1、一般场景','按ICT项目标准流程凭签订合同（非框架）及协议级项目作为投资立项依据','是否内部交易、投资需求管理员、业务类型、收入（产品名称/税率/收入）、投资（建设期/资本支出）'],
+      ['2、多年签场景','一次投资交付支撑多年服务、一年一签，客户承诺多年合作','评估年份（合作期）、实际合同签约期限、是否内部交易、投资需求管理员、存续投资、业务类型、收入（本期合同额）'],
+      ['3、合作分成场景','与外部第三方合作，前向收入以分成方式结给第三方','是否内部交易、投资需求管理员、存续投资、业务类型、收入分成（含税）、收入（分成口径）'],
+      ['4、框架+订单场景','以框架合同作为投资立项依据，订单合同服务客户（如平台型项目）','投资需求管理员、存续投资、业务类型、收入（公司决策概算收入）'],
+      ['5、标品场景','签订ICT业务及标品业务合同占用ICT投资，标品经CRM受理','投资需求管理员、存续投资、业务类型、收入（公司决策概算收入）']] } },
+    { h:'三、应急项目', p:'原则上按预算前评估结果在协议级项目立项完成后触发投资立项；如根据公司决策需应急立项，可选用商机概算应急立项。' },
+    { h:'四、ICT投资立项方式判定', table:{ head:['协议级项目与投资项目对应关系','立项方式'], rows:[
+      ['一个协议级项目 → 一个投资项目','直接立项'],
+      ['多个协议级项目 → 一个投资项目','合并立项'],
+      ['一个协议级项目 → 多个投资项目','拆分立项'],
+      ['多对多','先拆分协议级项目，再依据触发关系重组合并立项']] } },
+    { h:'五、系统填写要求', p:'业务类型选集成服务、私有云及5G定制网（决定占用投资专项预算）；如未自动触发 MSS 计划建设系统生成投资需求，须手动关联已生成的协议级项目编码或商机编码。' }
+  ] } },
+
+  '内控及管理速查表': { fmt:'Word', doc:{ title:'含投资类ICT项目方案评审-事前审批-协议级立项管理速查表', intro:'官方附件8。全流程内控口径速查：标前评审准备→评审输出→决策审批→协议级立项→触发成本及投资立项。', sections:[
+    { h:'一、适用范围', p:'以电信为主体签订前向合同，有ICT项目收入，合同签订收入可一次支付或按多年分期支付，合同约定服务内容与实际建设内容保持一致，且收投比≥集团考核要求（当前为 1.2）的政企项目。低效益项目：收投比低于集团考核要求，或无直接前向合同、仅框架合同+订单，投资及成本需求无法带动确定合同收入的政企项目。' },
+    { h:'二、分级审批（按投资规模）', table:{ head:['环节','300万以下','300万-1000万','1000万及以上'], rows:[
+      ['标前：方案评审','地市中台组织省市单位评审，会审部门主管对关键点确认并签批','省中台组织省市单位评审，省市会审部门主管对关键点确认并签批','省中台组织省市单位评审（低效益项目增加项目评分环节）'],
+      ['事前：审批决策','地市内控执行','省公司会审部门领导审批--省政企总经理签批','省政企组织上会决策（按评审要点呈现），省公司会审部门参会'],
+      ['标后：协议级立项','省市公司会审主管（财务、政企、网发）在协议级审核上传材料是否完备，填写与会审内容是否一致，如一致，触发投资下达及立项','','']] } },
+    { h:'三、标前评审前准备材料', table:{ head:['序号','材料','要求'], rows:[
+      ['1','评审要点表','与云中台发文保持一致；要点中涉及内容需附件另外提供'],
+      ['2','项目实施方案','项目整体方案，含投资部分的建设方案及规模、成本支出部分实施方案及规模、大网资源开通部分内容及实施方案等'],
+      ['3','方案解构','云中台提供标准模版及口径'],
+      ['4','业财解析表','财务提供标准模版及口径'],
+      ['5','项目评分表','低效益及战略项目必有'],
+      ['6','收入承诺','低效益及战略项目必有'],
+      ['7','上会PPT','1000万以上']] } },
+    { h:'四、评审输出', p:'评审后纪要+评审要点表、评审后的项目实施方案、评审后的方案解构、评审后的业财解析表、评审后的项目评分表（低效益及战略必有）、评审后的收入承诺（低效益及战略必有）、上会PPT（1000万以上）。' },
+    { h:'五、决策审批', p:'发起签报（附件为评审后纪要+评审要点表）；1000万以上上会，附件为全套评审后材料。如需合同签订前投资立项，需在审批或上会中专项说明。' },
+    { h:'六、协议级立项及触发投资', p:'协议级立项上传签报或上会纪要，并上传评审后的评审要点表、项目实施方案、方案解构、业财表、项目评分表、已签字收入承诺、上会PPT；会审主管审核材料完备且与会审内容一致后，触发投资下达及资本、成本立项。' }
+  ] } },
+
+  '投资类业财解析表模版': { fmt:'Excel', sheets:[
+    { name:'混合型项目-1年进收', cols:[46,12,13,15,10,62], rows: invYearRows('混合型项目-资本+成本性支出', false) },
+    { name:'混合型项目-多年进收', cols:[46,12,12,12,12,12,15,15,10,62], rows: invMultiRows('混合型项目-资本+成本性支出', false) },
+    { name:'纯投资型项目-1年进收', cols:[46,12,13,15,10,62], rows: invYearRows('纯投资型项目-资本性支出', true) },
+    { name:'纯投资型项目-多年进收', cols:[46,12,12,12,12,12,15,15,10,62], rows: invMultiRows('纯投资型项目-资本性支出', true) }
+  ] },
+
+  /* ---------- 签约 / 交付 / 回款阶段 ---------- */
+  '6、ICT项目标前评审会会议纪要及评审要点表': { fmt:'Word', doc:{ title:'ICT项目标前评审会会议纪要及评审要点表', intro:'标准物料⑥ 官方模板。会议纪要为中标签约依据，须完整记录各部门意见与评审结论，并附评审要点表。', sections:[
+    { h:'一、会议基本信息', table:{ head:['项目','内容'], rows:[
+      ['制发单位 / 签发人',''],['编号 / 密级 / 缓急 / 页数',''],['会议名称','xxx项目方案评审会（标前评审会）会议纪要'],
+      ['会议时间',''],['会议地点',''],['会议主持',''],['记录人','']] } },
+    { h:'二、参会人员', table:{ head:['部门','人员'], rows:[
+      ['采购供应链管理中心',''],['财务部',''],['云网运营部',''],['云网发展部',''],
+      ['智能服务运营中心（ISOC）',''],['省政企云中台',''],['xx行业事业部',''],['财务共享中心',''],['其他相关部门','']] } },
+    { h:'三、会议议题', p:'组织相关单位就xx项目的整体技术方案、建设方案、成本方案、运维方案、采购方案、商务合同方案、项目预计效益等进行标前评审并输出相应结论。' },
+    { h:'四、会议内容（关键信息确认）', p:'会议明确以下关键信息，以支撑项目风险及决策评估（如暂不能明确，请对应项说明不能明确的原因、后续处理及可能影响的考虑）。', table:{ head:['议题','说明'], rows:[
+      ['1、项目背景及需求说明','资金来源、招标人、最高投标限价、客户场景及能力需求等'],
+      ['2、整体解决方案说明','由需求及场景触发分析形成解决方案，明确架构-能力-技术方案（大网调用/新建能力/组合调用机制、投资与成本支出、开通资源）'],
+      ['3、效益分析','预填写业财评审表；说明预期签约方式（一年/多年/框架/合作分成及比例）、是否内部交易、预期成本支出（集成/维保/其他）'],
+      ['4、运维服务方案','本项目对运维的要求、质量、服务及支出考虑'],
+      ['5、验收要求','对软硬件、业务等能力的验收标准和指标要求'],
+      ['6、资产及维护职责确认','资产归属单位 / 资产接收单位 / 运营单位 / 运维单位'],
+      ['7、项目进度说明','预计签约时间、交付时间要求'],
+      ['8、其他事项','']] } },
+    { h:'五、评审结论', table:{ head:['部门','意见','结论'], rows:[
+      ['采购供应链管理中心','',''],['财务部','',''],['云网运营部','',''],['云网发展部','',''],
+      ['ISOC','',''],['省政企云中台','',''],['行业事业部','',''],['财务共享中心','','']] } },
+    { h:'六、评审要点表（附件）', table:{ head:['评审要点','评审内容','结论'], rows:[
+      ['背景需求','项目属性、资金来源、限价',''],['整体方案','架构-能力-技术方案完整性',''],
+      ['效益分析','业财解析表与收投比',''],['运维方案','运维职责与支出',''],
+      ['验收要求','验收标准与指标',''],['资产及维护职责','四类单位确认',''],
+      ['进度计划','签约与交付时间',''],['待决议事项','需上会决策事项','']] } }
+  ] } },
+
+  '业务解构表': { fmt:'Excel', sheets:[{ name:'业务解构', cols:[18,58], rows:[
+    ['项目','内容'],['合同解析',''],['业务解构',''],['采购需求',''],['实施计划','']] }] },
+
+  '交付准备清单': { fmt:'Excel', sheets:[{ name:'交付准备', cols:[8,34,14,14,10], rows:[
+    ['序号','准备事项','负责人','完成时限','状态'],
+    ['1','交付资料包（合同、纪要、方案）','','',''],
+    ['2','客户对接人与接口确认','','',''],
+    ['3','实施计划与里程碑确认','','',''],
+    ['4','采购需求与供应商确认','','',''],
+    ['5','交付启动会','','','']
+  ] }] },
+
+  '采购立项单': { fmt:'Excel', sheets:[{ name:'采购立项', cols:[18,50], rows:[
+    ['项目','内容'],['采购内容',''],['预算金额（元）',''],['供应商',''],['立项依据','标前评审结果（不重复评审）'],['备注','']] }] },
+
+  '回款计划表': { fmt:'Excel', sheets:[{ name:'回款计划', cols:[10,24,16,14,14,10], rows:[
+    ['期次','回款节点','金额（万元）','计划日期','实际日期','状态'],
+    ['第1期','','','','',''],['第2期','','','','',''],['第3期','','','','',''],
+    ['第4期','','','','',''],['合计','','=SUM(C2:C5)','','','']
+  ] }] },
+
+  '催款函模板': { fmt:'Word', doc:{ title:'催款函', intro:'用于逾期回款书面催收，须与合同付款条款、回款计划表一致。', sections:[
+    { h:'一、函件信息', table:{ head:['项目','内容'], rows:[
+      ['致（客户单位）',''],['项目名称',''],['合同编号',''],['逾期金额（元）',''],['逾期天数',''],['催款日期','']] } },
+    { h:'二、催款事由', p:'根据合同第__条约定，贵司应于____年__月__日前支付第__期款项____元，截至本函发出之日尚未支付。请于收到本函后__个工作日内完成付款。' },
+    { h:'三、联系方式', table:{ head:['联系人','电话','邮箱'], rows:[['','','']] } }
+  ] } }
+};
+
+// 把以 "=" 开头的文本单元格转换为真实公式（SheetJS 部分版本默认按文本写入）
+function applyFormulas(ws) {
+  Object.keys(ws).forEach(k => {
+    if (k[0] === '!') return;
+    const c = ws[k];
+    if (c.t === 's' && typeof c.v === 'string' && c.v.charAt(0) === '=') {
+      c.f = c.v.slice(1);
+      delete c.v;
+      c.t = 'n';
+    }
+  });
+}
+
+// 生成并下载 Excel 工作簿（支持合并单元格与列宽）
+function buildExcel(fileName, tpl) {
+  const wb = XLSX.utils.book_new();
+  (tpl.sheets || []).forEach(s => {
+    const ws = XLSX.utils.aoa_to_sheet(s.rows);
+    applyFormulas(ws);
+    if (s.merges) ws['!merges'] = s.merges.map(r => XLSX.utils.decode_range(r));
+    if (s.cols) ws['!cols'] = s.cols.map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, s.name);
+  });
+  XLSX.writeFile(wb, fileName);
+}
+
+// 生成并下载 Word 文档（HTML 版 .doc，Word / WPS 可直接打开编辑）
+function buildWord(fileName, tpl) {
+  const d = tpl.doc || {};
+  const tbl = t => `<table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse;width:100%;font-size:10pt;">
+    <tr>${t.head.map(h => `<th style="background:#eef4fb;text-align:left;font-weight:bold;">${esc(h)}</th>`).join('')}</tr>
+    ${t.rows.map(r => `<tr>${r.map(c => `<td>${esc(String(c))}</td>`).join('')}</tr>`).join('')}
+  </table>`;
+  const sections = (d.sections || []).map(s =>
+    `<h2>${esc(s.h)}</h2>${s.p ? `<p>${esc(s.p)}</p>` : ''}${s.table ? tbl(s.table) : ''}`
+  ).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(d.title || fileName)}</title>
+<style>body{font-family:"宋体",SimSun,serif;font-size:10.5pt;line-height:1.75;}
+h1{font-family:"黑体",SimHei;font-size:16pt;text-align:center;margin:0 0 16px;}
+h2{font-family:"黑体",SimHei;font-size:12pt;margin:16px 0 8px;border-left:4px solid #2b7bb9;padding-left:8px;}
+p{margin:6px 0;} .note{color:#555;font-size:9.5pt;}</style></head><body>
+<h1>${esc(d.title || fileName)}</h1>
+${d.intro ? `<p class="note">${esc(d.intro)}</p>` : ''}
+${sections}
+</body></html>`;
+  const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+
+// ===== Supabase 后端连接 =====
+// AnonKey 存在浏览器 localStorage，不进源码、不进对话；也可直接写死在 anonKey 里
+const SUPABASE_CONFIG = {
+  url: 'https://br-valid-cony-00a62ffc.supabase.aidap-global.cn-beijing.volces.com',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1wbGF0Zm9ybSIsInJvbGUiOiJhbm9uIiwiZXhwIjozNjkwNTE0NzA2fQ.1etwAi0qC0rsgJnSql-D-sSZ1hjKQmBdzAyJunINsjQ'
+};
+const SB_KEY_STORE = 'finance_transport_sb_anon_key';
+const SB_EDIT_CODE_STORE = 'finance_transport_edit_code'; // 编辑口令，仅存本机
+let _sb = null;
+
+function getAnonKey() {
+  const stored = localStorage.getItem(SB_KEY_STORE);
+  if (stored) return stored;
+  return SUPABASE_CONFIG.anonKey || '';
+}
+// 用当前 key 重建客户端；返回是否连接成功
+function initSupabase() {
+  const key = getAnonKey();
+  if (typeof supabase === 'undefined' || !key) { _sb = null; return false; }
+  try { _sb = supabase.createClient(SUPABASE_CONFIG.url, key); return true; }
+  catch (e) { console.warn('[Supabase] 初始化失败:', e.message); _sb = null; return false; }
+}
+function sbEnabled() { return !!_sb; }
+// 编辑口令：未设置时云端写操作自动跳过（只读模式）
+function getEditCode() { return localStorage.getItem(SB_EDIT_CODE_STORE) || ''; }
+
+// === Supabase ↔ 前端数据转换 ===
+// 前端 project.stages 对象 → 数据库多列
+function projectToRow(p) {
+  const st = p.stages || {};
+  return {
+    id: p.id, name: p.name || '', description: p.description || '',
+    account_manager: p.accountManager || '', industry_director: p.industryDirector || '',
+    status: p.status || 'active',
+    pre_selection_done: st.preSelection?.preSelectionDone || null,
+    pre_selection_completed: !!st.preSelection?.completed,
+    pre_selection_started: !!st.preSelection?.started,
+    bid_date: st.bidding?.bidDate || null,
+    bid_result: st.bidding?.bidResult || null,
+    bid_completed: !!st.bidding?.completed,
+    bid_started: !!st.bidding?.started,
+    sign_date: st.signing?.signDate || null,
+    sign_completed: !!st.signing?.completed,
+    sign_started: !!st.signing?.started,
+    deliver_date: st.delivery?.deliverDate || null,
+    deliver_completed: !!st.delivery?.completed,
+    deliver_started: !!st.delivery?.started,
+    payment_date: st.payment?.paymentDate || null,
+    payment_completed: !!st.payment?.completed,
+    payment_started: !!st.payment?.started,
+    contract_amount: p.contractAmount || null,
+    remarks: p.remarks || null
+  };
+}
+// 数据库行 → 前端 project 对象
+function rowToProject(r) {
+  return {
+    id: r.id, name: r.name, description: r.description || '',
+    accountManager: r.account_manager || '', industryDirector: r.industry_director || '',
+    status: r.status || 'active',
+    contractAmount: r.contract_amount || null,
+    remarks: r.remarks || null,
+    stages: {
+      preSelection: {
+        preSelectionDone: r.pre_selection_done,
+        completed: !!r.pre_selection_completed,
+        started: !!r.pre_selection_started
+      },
+      bidding: {
+        bidDate: r.bid_date, bidResult: r.bid_result || null,
+        completed: !!r.bid_completed, started: !!r.bid_started
+      },
+      signing: {
+        signDate: r.sign_date,
+        completed: !!r.sign_completed, started: !!r.sign_started
+      },
+      delivery: {
+        deliverDate: r.deliver_date,
+        completed: !!r.deliver_completed, started: !!r.deliver_started
+      },
+      payment: {
+        paymentDate: r.payment_date,
+        completed: !!r.payment_completed, started: !!r.payment_started
+      }
+    }
+  };
+}
+
+// === Supabase 异步同步（失败静默，不阻塞 localStorage 主链路） ===
+// 写入必须走服务端 RPC（数据库已收回直接写权限），口令由函数校验
+async function sbUpsertProject(p) {
+  if (!sbEnabled()) return;
+  const code = getEditCode();
+  if (!code) return; // 未填口令 → 只落本地，不向云端发起写请求
+  try {
+    const row = projectToRow(p);
+    const { error } = await _sb.rpc('save_project', { p_row: row, p_code: code });
+    if (error) console.warn('[Supabase] project 保存失败:', error.message);
+  } catch (e) { console.warn('[Supabase] project 保存异常:', e.message); }
+}
+async function sbUpsertWeekly(pid, stageKey, weekKey, percent, note, progressDate) {
+  if (!sbEnabled()) return;
+  const code = getEditCode();
+  if (!code) return;
+  try {
+    const { error } = await _sb.rpc('save_weekly', {
+      p_row: {
+        project_id: pid, stage_key: stageKey, week_key: weekKey,
+        progress_date: progressDate, percent, note: note || ''
+      },
+      p_code: code
+    });
+    if (error) console.warn('[Supabase] weekly_progress 保存失败:', error.message);
+  } catch (e) { console.warn('[Supabase] weekly_progress 异常:', e.message); }
+}
+
+// ===== 状态变量 =====
+const STORAGE_KEY = 'finance_transport_dashboard';
+let projects = [];
+let editingId = null;
+let currentDetailId = null;
+let deleteTargetId = null;
+
+// ===== 工具函数 =====
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function openDetail(id) { renderDetail(id); }
+function formatDate(d) { return d ? d.replace(/-/g, '/') : '—'; }
+function addDays(dateStr, days) { const d = new Date(dateStr); d.setDate(d.getDate() + days); return d.toISOString().split('T')[0]; }
+function daysBetween(a, b) { return Math.ceil((new Date(b) - new Date(a)) / 86400000); }
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+
+// ===== 数据持久化：localStorage 主链路 + Supabase 异步备份 =====
+function saveData() {
+  const ind = document.getElementById('saveIndicator');
+  ind.textContent = '保存中...'; ind.classList.add('saving');
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  localStorage.setItem(STORAGE_KEY + '_backup', JSON.stringify(projects));
+  setTimeout(() => { ind.textContent = '已保存'; ind.classList.remove('saving'); }, 500);
+  // Supabase 异步同步（每条项目一条 upsert，失败静默不阻塞）
+  if (sbEnabled()) {
+    projects.forEach(p => sbUpsertProject(p));
+  }
+}
+
+// 从 Supabase 拉取全部数据（含 weekly_progress 关联表）
+async function sbLoadAll() {
+  const { data: rows, error } = await _sb.from('projects').select('*');
+  if (error) throw new Error(error.message);
+  // 把库里已有的 weekly_progress 合并回各项目 stages
+  const { data: wpRows, error: wpErr } = await _sb.from('weekly_progress').select('*');
+  if (wpErr) throw new Error(wpErr.message);
+  const wpMap = {}; // projectId → { stageKey → [progress...] }
+  (wpRows || []).forEach(w => {
+    if (!wpMap[w.project_id]) wpMap[w.project_id] = {};
+    if (!wpMap[w.project_id][w.stage_key]) wpMap[w.project_id][w.stage_key] = [];
+    wpMap[w.project_id][w.stage_key].push({
+      weekKey: w.week_key, date: w.progress_date, percent: w.percent, note: w.note || ''
+    });
+  });
+  const local = (rows || []).map(rowToProject);
+  local.forEach(p => {
+    const perStage = wpMap[p.id];
+    if (perStage) Object.keys(perStage).forEach(sk => {
+      if (p.stages[sk]) p.stages[sk].weeklyProgress = perStage[sk].sort((a, b) => a.date < b.date ? -1 : 1);
+    });
+  });
+  return local;
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    projects = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(projects)) projects = [];
+    // 补齐缺失的头部项目（按 ID 去重，不管有没有残留数据都生效）
+    const seeds = seedHeadProjects();
+    const existingIds = new Set(projects.map(p => p.id));
+    const missing = seeds.filter(s => !existingIds.has(s.id));
+    if (missing.length > 0) {
+      projects.push(...missing);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+      localStorage.setItem(STORAGE_KEY + '_backup', JSON.stringify(projects));
+    }
+  } catch (e) { projects = []; }
+  // 如果 Supabase 可用，异步拉取并覆盖 localStorage（冲突时 Supabase 为准）
+  if (sbEnabled()) {
+    sbLoadAll().then(remoteProjects => {
+      if (remoteProjects && remoteProjects.length) {
+        // 用 Supabase 数据覆盖（以数据库为准）
+        projects = remoteProjects;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+        localStorage.setItem(STORAGE_KEY + '_backup', JSON.stringify(projects));
+        renderAll();
+      }
+    }).catch(err => console.warn('[Supabase] 拉取失败，继续用 localStorage:', err.message));
+  }
+}
+
+// 手动导入头部项目（给已有数据的用户使用，按合同号去重）
+function importHeadProjects() {
+  const seeds = seedHeadProjects();
+  const existingIds = new Set(projects.map(p => p.id));
+  const newOnes = seeds.filter(s => !existingIds.has(s.id));
+  if (!newOnes.length) { showToast('头部项目已全部导入'); return; }
+  projects.push(...newOnes);
+  saveData(); renderAll();
+  showToast(`已导入 ${newOnes.length} 个头部项目`);
+}
+// ===== Excel 台账导入导出 =====
+// 台账列定义（导出与导入共用，导入时按表头名称匹配，容忍列顺序变化）
+const EXCEL_COLS = [
+  'ID','项目名称','项目描述','客户经理','行业总监','项目状态','当前阶段','阶段进度%','最近进度更新',
+  '标前遴选完成日','标前遴选状态','投标日期','投标结果','投标状态','签约日期','签约状态',
+  '交付日期','交付状态','回款日期','回款状态'
+];
+const EXCEL_WIDTHS = [26,34,60,12,18,10,12,10,14,16,12,12,10,12,12,12,12,12,12,12];
+
+// 阶段内部状态 → 中文
+function stageStateText(s) {
+  if (!s) return '待启动';
+  if (s.completed) return '已完成';
+  if (s.started) return '进行中';
+  return '待启动';
+}
+// 中文状态 → 内部 started/completed
+function applyStageState(s, text) {
+  const t = String(text || '').trim();
+  s.started = t === '进行中' || t === '已完成';
+  s.completed = t === '已完成';
+}
+// Excel 单元格 → YYYY-MM-DD（兼容 Date 对象 / 日期序列号 / 文本）
+function cellToDate(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10);
+  if (v instanceof Date) return isNaN(v) ? '' : v.toISOString().slice(0, 10);
+  const m = String(v).trim().match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : '';
+}
+
+// 导出 Excel 项目台账
+function exportData() {
+  if (typeof XLSX === 'undefined') { showToast('Excel 组件未加载，请刷新页面'); return; }
+  const stageOrder = ['preSelection','bidding','signing','delivery','payment'];
+  const rows = projects.map(p => {
+    const st = p.stages || {};
+    const curIdx = getCurrentStageIndex(p);
+    const curKey = stageOrder[curIdx];
+    const wkList = st[curKey]?.weeklyProgress || [];
+    return [
+      p.id,
+      p.name,
+      p.description || '',
+      p.accountManager || '',
+      p.industryDirector || '',
+      p.status === 'terminated' ? '已终止' : (p.status === 'completed' ? '已完成' : '进行中'),
+      STAGE_CONFIG[curIdx] ? STAGE_CONFIG[curIdx].name : '',
+      wkList.length ? wkList[wkList.length - 1].percent : '',
+      wkList.length ? wkList[wkList.length - 1].weekKey : '',
+      st.preSelection?.preSelectionDone || '', stageStateText(st.preSelection),
+      st.bidding?.bidDate || '',
+      st.bidding?.bidResult === 'won' ? '中标' : (st.bidding?.bidResult === 'lost' ? '未中标' : ''),
+      stageStateText(st.bidding),
+      st.signing?.signDate || '', stageStateText(st.signing),
+      st.delivery?.deliverDate || '', stageStateText(st.delivery),
+      st.payment?.paymentDate || '', stageStateText(st.payment)
+    ];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([EXCEL_COLS, ...rows]);
+  ws['!cols'] = EXCEL_COLS.map((c, i) => ({ wch: EXCEL_WIDTHS[i] || 14 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '项目台账');
+  XLSX.writeFile(wb, `金融交通项目台账_${todayStr()}.xlsx`);
+  showToast(`已导出 ${projects.length} 个项目`);
+}
+
+// 解析台账 sheet → project 数组
+function parseProjectSheet(aoa) {
+  if (!aoa || aoa.length < 2) return [];
+  const head = aoa[0].map(h => String(h == null ? '' : h).trim());
+  const pick = (row, name) => { const i = head.indexOf(name); return i >= 0 ? row[i] : ''; };
+  const out = [];
+  aoa.slice(1).forEach((row, n) => {
+    if (!row || !String(pick(row, '项目名称') || '').trim()) return;   // 跳过空行
+    const p = {
+      id: String(pick(row, 'ID') || '').trim() || `import_${Date.now()}_${n}`,
+      name: String(pick(row, '项目名称')).trim(),
+      description: String(pick(row, '项目描述') || ''),
+      accountManager: String(pick(row, '客户经理') || ''),
+      industryDirector: String(pick(row, '行业总监') || ''),
+      status: 'active',
+      stages: {}
+    };
+    const stText = String(pick(row, '项目状态') || '').trim();
+    if (stText === '已终止') p.status = 'terminated';
+    else if (stText === '已完成') p.status = 'completed';
+    // 五阶段：状态列 + 日期列
+    [['preSelection', '标前遴选状态', '标前遴选完成日', 'preSelectionDone'],
+     ['bidding', '投标状态', '投标日期', 'bidDate'],
+     ['signing', '签约状态', '签约日期', 'signDate'],
+     ['delivery', '交付状态', '交付日期', 'deliverDate'],
+     ['payment', '回款状态', '回款日期', 'paymentDate']].forEach(([key, stateCol, dateCol, field]) => {
+      const s = {};
+      applyStageState(s, pick(row, stateCol));
+      const d = cellToDate(pick(row, dateCol));
+      if (d) s[field] = d;
+      p.stages[key] = s;
+    });
+    // 投标结果
+    const br = String(pick(row, '投标结果') || '').trim();
+    if (br === '中标') p.stages.bidding.bidResult = 'won';
+    else if (br === '未中标') { p.stages.bidding.bidResult = 'lost'; p.status = 'terminated'; }
+    // 进度列：有值则补一条当周记录，保证往返不丢进度
+    const pctRaw = pick(row, '阶段进度%');
+    const pctEmpty = String(pctRaw === null || pctRaw === undefined ? '' : pctRaw).trim() === '';
+    const pct = Number(pctRaw);
+    const curKey = ['preSelection','bidding','signing','delivery','payment']
+      .find(k => p.stages[k].started && !p.stages[k].completed);
+    if (curKey && !pctEmpty && !isNaN(pct) && pct >= 0) {
+      p.stages[curKey].weeklyProgress = [{
+        weekKey: String(pick(row, '最近进度更新') || '').trim() || getISOWeek(),
+        date: todayStr(), percent: Math.min(100, Math.round(pct)), note: ''
+      }];
+    }
+    out.push(p);
+  });
+  return out;
+}
+
+// 导入：支持 Excel（.xlsx/.xls）与 JSON（.json）
+function importData(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      let list = null;
+      if (isExcel) {
+        if (typeof XLSX === 'undefined') { showToast('Excel 组件未加载，请刷新页面'); return; }
+        const wb = XLSX.read(new Uint8Array(reader.result), { type: 'array', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        list = parseProjectSheet(XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }));
+      } else {
+        const data = JSON.parse(reader.result);
+        list = Array.isArray(data) ? data : null;
+      }
+      if (!list || !list.length) { showToast('未识别到项目数据，请确认表头与导出模板一致'); return; }
+      projects = list;
+      saveData(); renderAll();
+      showToast(`已导入 ${list.length} 个项目`);
+    } catch (err) { showToast('解析失败：' + err.message); }
+  };
+  if (isExcel) reader.readAsArrayBuffer(file); else reader.readAsText(file);
+  e.target.value = '';
+}
+window.addEventListener('beforeunload', () => saveData());
+setInterval(saveData, 60000);
+
+// ===== 阶段状态计算 =====
+// ===== 每周进度工具 =====
+// 返回 ISO 周格式 "YYYY-Www"，如 "2026-W44"
+function getISOWeek(dateStr) {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7)); // 周四所在周
+  const yearStart = new Date(d.getFullYear(), 0, 1);
+  const weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
+// 获取某阶段当前最新进度（历史里最后一条）
+function getStageProgress(proj, stageKey) {
+  const list = proj.stages?.[stageKey]?.weeklyProgress || [];
+  return list.length ? list[list.length - 1].percent : 0;
+}
+// 判断某阶段本周是否已提交进度
+function isWeeklySubmitted(proj, stageKey) {
+  const thisWeek = getISOWeek();
+  const list = proj.stages?.[stageKey]?.weeklyProgress || [];
+  return list.some(r => r.weekKey === thisWeek);
+}
+// 保存某阶段本周进度
+function saveWeeklyProgress(pid, stageKey, percent, note) {
+  const proj = projects.find(p => p.id === pid);
+  if (!proj) return;
+  if (!proj.stages[stageKey].weeklyProgress) proj.stages[stageKey].weeklyProgress = [];
+  const wk = getISOWeek(), today = todayStr();
+  const list = proj.stages[stageKey].weeklyProgress;
+  // 本周已存在则更新，否则追加
+  const exist = list.find(r => r.weekKey === wk);
+  if (exist) { exist.percent = percent; exist.note = note; exist.date = today; }
+  else list.push({ weekKey: wk, date: today, percent, note });
+  saveData(); renderDetail(pid);
+  showToast(`进度已保存（${wk}）`);
+  // Supabase 同步 weekly_progress 子表
+  sbUpsertWeekly(pid, stageKey, wk, percent, note, today);
+}
+
+function getStageStatus(proj, stageKey) {
+  const s = proj.stages?.[stageKey];
+  if (!s) return 'pending';
+  if (s.completed) return 'done';
+  if (stageKey === 'bidding' && s.bidResult === 'lost') return 'terminated';
+  if (s.started) return 'progress';
+  return 'pending';
+}
+
+function getCurrentStageIndex(proj) {
+  if (!proj.stages) return 0;
+  // terminated 项目固定显示三阶段
+  if (proj.status === 'terminated') return 1;
+  const order = ['preSelection','bidding','signing','delivery','payment'];
+  for (let i = order.length - 1; i >= 0; i--) {
+    const st = getStageStatus(proj, order[i]);
+    if (st === 'progress' || st === 'done') return i;
+  }
+  return 0;
+}
+
+function getStageDate(proj, stageKey) {
+  const s = proj.stages?.[stageKey];
+  if (!s) return null;
+  const map = { preSelection: 'preSelectionDone', bidding: 'bidDate', signing: 'signDate', delivery: 'deliverDate', payment: 'paymentDate' };
+  return s[map[stageKey]] || null;
+}
+
+function getStageDeadline(proj, stageKey) {
+  const s = proj.stages?.[stageKey];
+  if (!s) return null;
+  if (stageKey === 'preSelection') return s.preSelectionDone || null;
+  if (stageKey === 'bidding') return s.bidDate || null;
+  if (stageKey === 'signing') return s.signDate || null;
+  if (stageKey === 'delivery') return s.deliverDate || null;
+  if (stageKey === 'payment') return s.paymentDate || null;
+  return null;
+}
+
+// ===== 提醒计算 =====
+function calcReminders() {
+  const today = todayStr();
+  const reminders = [];
+  projects.forEach(p => {
+    if (p.status === 'terminated') return;
+    const s = p.stages || {};
+    // 标前遴选完成
+    if (s.preSelection?.preSelectionDone && !s.preSelection?.completed) {
+      const d = daysBetween(today, s.preSelection.preSelectionDone);
+      if (d <= 0) reminders.push({ type: 'overdue', text: `${p.name} - 标前遴选完成`, id: p.id });
+      else if (d <= 3) reminders.push({ type: 'upcoming', text: `${p.name} - 标前遴选完成（${d}天后）`, id: p.id });
+    }
+    // 投标前三天
+    if (s.bidding?.bidDate && !s.bidding?.completed) {
+      const threeBefore = addDays(s.bidding.bidDate, -3);
+      const d = daysBetween(today, threeBefore);
+      if (d === 0) reminders.push({ type: 'urgent', text: `${p.name} - 投标前三天提醒（今日）`, id: p.id });
+      else if (d > 0 && d <= 3) reminders.push({ type: 'upcoming', text: `${p.name} - 投标前三天（${d}天后）`, id: p.id });
+      const bidD = daysBetween(today, s.bidding.bidDate);
+      if (bidD === 0) reminders.push({ type: 'urgent', text: `${p.name} - 今日投标`, id: p.id });
+    }
+    // 签约后30天
+    if (s.signing?.signDate && !s.delivery?.completed) {
+      const deadline = addDays(s.signing.signDate, 30);
+      const d = daysBetween(today, deadline);
+      if (d <= 0) reminders.push({ type: 'overdue', text: `${p.name} - 交付资料准备已逾期`, id: p.id });
+      else if (d <= 3) reminders.push({ type: 'upcoming', text: `${p.name} - 交付资料准备（${d}天后）`, id: p.id });
+    }
+    // 交付时间
+    if (s.delivery?.deliverDate && !s.delivery?.completed) {
+      const d = daysBetween(today, s.delivery.deliverDate);
+      if (d <= 0) reminders.push({ type: 'overdue', text: `${p.name} - 交付已逾期`, id: p.id });
+      else if (d <= 3) reminders.push({ type: 'upcoming', text: `${p.name} - 交付（${d}天后）`, id: p.id });
+    }
+    // 回款时间
+    if (s.payment?.paymentDate && !s.payment?.completed) {
+      const d = daysBetween(today, s.payment.paymentDate);
+      if (d <= 0) reminders.push({ type: 'overdue', text: `${p.name} - 回款已逾期`, id: p.id });
+      else if (d <= 3) reminders.push({ type: 'upcoming', text: `${p.name} - 回款（${d}天后）`, id: p.id });
+    }
+    // 进行中阶段：检查本周是否已更新进度
+    STAGE_CONFIG.forEach(stg => {
+      if (getStageStatus(p, stg.key) === 'progress' && !isWeeklySubmitted(p, stg.key)) {
+        reminders.push({ type: 'upcoming', text: `${p.name} - 请更新「${stg.name}」本周进度`, id: p.id });
+      }
+    });
+  });
+  return reminders;
+}
+
+// ===== 渲染 =====
+function renderAll() {
+  renderReminder();
+  renderDashboard();
+  renderBpmFlow();
+}
+
+function renderReminder() {
+  const reminders = calcReminders();
+  const bar = document.getElementById('reminderBar');
+  const icon = document.getElementById('reminderIcon');
+  const title = document.getElementById('reminderTitle');
+  const list = document.getElementById('reminderList');
+  const urgent = reminders.filter(r => r.type === 'urgent').length;
+  const upcoming = reminders.filter(r => r.type === 'upcoming').length;
+  const overdue = reminders.filter(r => r.type === 'overdue').length;
+  if (!reminders.length) { bar.classList.remove('active'); return; }
+  bar.classList.add('active');
+  icon.className = 'reminder-icon ' + (overdue ? 'overdue' : urgent ? 'urgent' : 'upcoming');
+  icon.textContent = overdue ? '⚠' : urgent ? '!' : '◷';
+  title.textContent = `${overdue} 项已逾期  ·  ${urgent} 项紧急  ·  ${upcoming} 项即将到期`;
+  list.innerHTML = reminders.map(r =>
+    `<span class="reminder-tag ${r.type}" onclick="openDetail('${r.id}')">${esc(r.text)}</span>`
+  ).join('');
+  // 统计
+  document.getElementById('statTotal').textContent = projects.length;
+  document.getElementById('statUrgent').textContent = urgent;
+  document.getElementById('statUpcoming').textContent = upcoming;
+  document.getElementById('statOverdue').textContent = overdue;
+  // 阶段进展统计（按当前所处阶段分组）
+  const stageOrder = ['preSelection','bidding','signing','delivery','payment'];
+  const stageIds = ['spPre','spBid','spSign','spDeliver','spPay'];
+  const counts = { preSelection:0, bidding:0, signing:0, delivery:0, payment:0 };
+  projects.filter(p => p.status !== 'terminated').forEach(p => {
+    const idx = getCurrentStageIndex(p);
+    counts[stageOrder[idx]]++;
+  });
+  stageOrder.forEach((k, i) => { document.getElementById(stageIds[i]).textContent = counts[k]; });
+  // 同步阶段卡选中高亮
+  const curFilter = document.getElementById('stageFilter').value;
+  document.querySelectorAll('.sp-card').forEach(el => {
+    el.classList.toggle('active', el.dataset.stage === curFilter);
+  });
+}
+
+// 阶段卡点击：联动 stageFilter 下拉框，再次点击取消筛选
+function filterByStage(stageKey) {
+  const sel = document.getElementById('stageFilter');
+  if (sel.value === stageKey) sel.value = '';    // 已选中则取消
+  else sel.value = stageKey;
+  renderAll();
+}
+
+function renderDashboard() {
+  const grid = document.getElementById('projectGrid');
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const filter = document.getElementById('stageFilter').value;
+  let list = projects.filter(p => {
+    if (search && !p.name.toLowerCase().includes(search) && !p.description?.toLowerCase().includes(search)) return false;
+    if (!filter) return true;
+    if (filter === 'completed') return p.status === 'completed';
+    if (filter === 'terminated') return p.status === 'terminated';
+    return getCurrentStageIndex(p) === STAGE_CONFIG.findIndex(s => s.key === filter) && p.status !== 'terminated';
+  });
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📋</div><h3>暂无项目</h3><p>点击右上角"新增项目"开始录入</p></div>`;
+    return;
+  }
+  grid.innerHTML = list.map(p => {
+    const currentIdx = getCurrentStageIndex(p);
+    const currentStage = STAGE_CONFIG[currentIdx];
+    const statusMap = { done: '已完成', progress: '进行中', pending: '待启动', terminated: '已终止' };
+    const currentStatus = getStageStatus(p, currentStage.key);
+    const currentDate = getStageDate(p, currentStage.key);
+    const deadline = getStageDeadline(p, currentStage.key);
+    const today = todayStr();
+    const d = deadline ? daysBetween(today, deadline) : null;
+    let daysClass = 'normal', daysText = '';
+    if (d !== null) {
+      if (d < 0) { daysClass = 'overdue'; daysText = `逾期${-d}天`; }
+      else if (d === 0) { daysClass = 'urgent'; daysText = '今日到期'; }
+      else if (d <= 3) { daysClass = 'upcoming'; daysText = `${d}天后`; }
+      else { daysClass = 'normal'; daysText = `${d}天后`; }
+    }
+    // 三阶段
+    const prevStage = currentIdx > 0 ? STAGE_CONFIG[currentIdx - 1] : null;
+    const nextStage = currentIdx < STAGE_CONFIG.length - 1 ? STAGE_CONFIG[currentIdx + 1] : null;
+    const prevStatus = prevStage ? getStageStatus(p, prevStage.key) : null;
+    const nextStatus = nextStage ? getStageStatus(p, nextStage.key) : null;
+    const prevDate = prevStage ? getStageDate(p, prevStage.key) : null;
+    const nextDate = nextStage ? getStageDate(p, nextStage.key) : null;
+    const stageLabels = STAGE_CONFIG.map((s, i) => {
+      const st = getStageStatus(p, s.key);
+      let cls = '';
+      if (st === 'done') cls = 'done';
+      else if (i === currentIdx && p.status !== 'terminated') cls = 'active';
+      return `<div class="stage-label ${cls}" data-stage="${s.key}">${s.name}</div>`;
+    }).join('');
+    const stageSegs = STAGE_CONFIG.map(s => {
+      const st = getStageStatus(p, s.key);
+      return `<div class="stage-seg ${st === 'done' ? 'done' : st === 'progress' ? 'progress' : st === 'terminated' ? 'terminated' : 'pending'}"></div>`;
+    }).join('');
+    return `
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('${p.id}')">
+        <div class="card-header">
+          <div class="card-title">${esc(p.name)}</div>
+          <div class="card-desc">${esc(p.description)}</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 ${esc(p.accountManager || '未指派')}</span>
+          <span>👔 ${esc(p.industryDirector || '未指派')}</span>
+        </div>
+        <div class="stage-labels">${stageLabels}</div>
+        <div class="stage-bar">${stageSegs}</div>
+        <div class="stage-info-block">
+          ${prevStage ? `
+          <div class="stage-info-row ${prevStatus}">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">${prevStage.name}</span>
+            <span class="si-status ${prevStatus}">${statusMap[prevStatus]}</span>
+            <span class="si-date">${formatDate(prevDate)}</span>
+            <span class="si-days ${prevStatus}">${prevStatus === 'done' ? '已完成' : ''}</span>
+          </div>` : ''}
+          <div class="stage-info-row ${currentStatus}">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">${currentStage.name}</span>
+            <span class="si-status ${currentStatus}">${statusMap[currentStatus]}</span>
+            <span class="si-date">${formatDate(currentDate)}</span>
+            <span class="si-days ${daysClass}">${daysText}</span>
+          </div>
+          ${nextStage ? `
+          <div class="stage-info-row ${nextStatus}">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">${nextStage.name}</span>
+            <span class="si-status ${nextStatus}">${statusMap[nextStatus]}</span>
+            <span class="si-date">${formatDate(nextDate)}</span>
+            <span class="si-days ${nextStatus}">${nextStatus === 'done' ? '已完成' : ''}</span>
+          </div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderBpmFlow() {
+  const el = document.getElementById('bpmFlow');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="bpm-flow-toggle" onclick="toggleBpmFlow()">
+      <span class="bpm-flow-title">🏛 小云中台流程总览（v2）</span>
+      <span class="bpm-flow-sub">点击查看各节点 BPM / 周期 / 对接人 / 标准物料</span>
+      <span class="bpm-flow-arrow" id="bpmFlowArrow">▼</span>
+    </div>
+    <div class="bpm-flow-body" id="bpmFlowBody" style="display:none;">
+      <div class="bpm-flow-strip">
+        ${STAGE_CONFIG.map((s, i) => `
+          ${i > 0 ? '<div class="bpm-flow-arrow">→</div>' : ''}
+          <div class="bpm-flow-card" onclick="openMaterialsHub()" title="${esc(s.bpm)}">
+            <div class="bpm-flow-name">${esc(s.name)}</div>
+            <div class="bpm-flow-bpm">${esc(BPM_SHORT[s.key] || s.bpm)}</div>
+            <div class="bpm-flow-meta"><span class="bpm-chip">⏱ ${esc(s.cycle)}</span></div>
+            <div class="bpm-flow-contact">对接：${esc(s.cloudContact)}</div>
+            <div class="bpm-flow-mat">📦 ${s.materials.length} 份标准物料</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function toggleBpmFlow() {
+  const body = document.getElementById('bpmFlowBody');
+  const arrow = document.getElementById('bpmFlowArrow');
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  arrow.textContent = collapsed ? '▲' : '▼';
+}
+
+function toggleCollapse(headerEl) {
+  const body = headerEl.nextElementSibling;
+  const arrow = headerEl.querySelector('.bpm-collapse-arrow');
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  arrow.textContent = collapsed ? '▲' : '▼';
+}
+
+function renderDetail(id) {
+  currentDetailId = id;
+  const proj = projects.find(p => p.id === id);
+  if (!proj) { backToDashboard(); return; }
+  const statusMap = { done: '已完成', progress: '进行中', pending: '待启动', terminated: '已终止' };
+  const stageDotColor = { done: 'var(--status-done)', progress: 'var(--status-progress)', pending: 'var(--status-pending)', terminated: 'var(--status-terminated)' };
+  const timeline = STAGE_CONFIG.map(stage => {
+    const status = getStageStatus(proj, stage.key);
+    const s = proj.stages?.[stage.key] || {};
+    let milestones = '';
+    // 构建里程碑
+    const msList = [];
+    if (stage.key === 'preSelection') {
+      if (s.preSelectionDone) msList.push({ label: '标前遴选完成', date: s.preSelectionDone, field: 'preSelectionDone' });
+    } else if (stage.key === 'bidding') {
+      if (s.bidDate) {
+        const threeBefore = addDays(s.bidDate, -3);
+        msList.push({ label: '投标前三天提醒', date: threeBefore, field: 'bidDate', readonly: true });
+        msList.push({ label: '投标日期', date: s.bidDate, field: 'bidDate' });
+      }
+      if (s.bidResult) msList.push({ label: '投标结果', date: s.bidResult === 'won' ? '已中标' : '未中标', field: 'bidResult', readonly: true });
+    } else if (stage.key === 'signing') {
+      if (s.signDate) msList.push({ label: '完成签约', date: s.signDate, field: 'signDate' });
+    } else if (stage.key === 'delivery') {
+      if (s.deliverDate) msList.push({ label: '按合同约定交付', date: s.deliverDate, field: 'deliverDate' });
+    } else if (stage.key === 'payment') {
+      if (s.paymentDate) msList.push({ label: '按合同约定回款', date: s.paymentDate, field: 'paymentDate' });
+    }
+    const today = todayStr();
+    milestones = msList.map(ms => {
+      const d = ms.date && ms.date.match(/^\d{4}-\d{2}-\d{2}$/) ? daysBetween(today, ms.date) : null;
+      let cls = '', daysStr = '';
+      if (d !== null) {
+        if (d < 0) { cls = 'alert-overdue'; daysStr = `<span class="milestone-days overdue">逾期${-d}天</span>`; }
+        else if (d === 0) { cls = 'alert-urgent'; daysStr = `<span class="milestone-days urgent">今日提醒</span>`; }
+        else if (d <= 3) { cls = 'alert-upcoming'; daysStr = `<span class="milestone-days upcoming">${d}天后</span>`; }
+        else { daysStr = `<span class="milestone-days normal">${d}天后</span>`; }
+      }
+      return `
+        <div class="milestone-item ${cls}">
+          <div class="milestone-left"><span class="milestone-label">${esc(ms.label)}</span></div>
+          <div class="milestone-right"><span class="milestone-date">${esc(ms.date || '—')}</span>${daysStr}</div>
+        </div>`;
+    }).join('');
+    // 快捷操作按钮
+    let actionBtns = '';
+    const pid = proj.id, sk = stage.key;
+    if (status === 'terminated') {
+      actionBtns = `<span class="stage-action-hint">此阶段已终止（投标未中标）</span>`;
+    } else if (status === 'done') {
+      actionBtns = `<button class="btn btn-sm stage-action-btn" onclick="revertStage('${pid}','${sk}')">回退至进行中</button>`;
+    } else if (status === 'pending') {
+      if (sk === 'bidding') {
+        actionBtns = `
+          <button class="btn btn-sm stage-action-btn" onclick="quickUpdate('${pid}','${sk}','bidResult','won')">标记中标</button>
+          <button class="btn btn-sm stage-action-btn" onclick="quickUpdate('${pid}','${sk}','bidResult','lost')">标记未中标</button>`;
+      } else {
+        actionBtns = `<button class="btn btn-sm stage-action-btn" onclick="markStageProgress('${pid}','${sk}')">启动此阶段</button>`;
+      }
+    } else if (status === 'progress') {
+      if (sk === 'bidding') {
+        actionBtns = `
+          <button class="btn btn-sm stage-action-btn" onclick="quickUpdate('${pid}','${sk}','bidResult','won')">标记中标</button>
+          <button class="btn btn-sm stage-action-btn" onclick="quickUpdate('${pid}','${sk}','bidResult','lost')">标记未中标</button>`;
+      } else {
+        actionBtns = `
+          <button class="btn btn-sm stage-action-btn" onclick="markStageDone('${pid}','${sk}')">标记完成</button>
+          <button class="btn btn-sm stage-action-btn" onclick="markStagePending('${pid}','${sk}')">回退至待启动</button>`;
+      }
+    }
+    // v2 升级：BPM 流程信息块
+    const bpmBlock = `
+      <div class="bpm-block">
+        <div class="bpm-block-title">🏛 ${esc(stage.bpm)}</div>
+        <div class="bpm-block-row"><span class="k">工作流动作</span><span class="v">${esc(stage.workflow)}</span></div>
+        <div class="bpm-block-row"><span class="k">职责岗位</span><span class="v">${esc(stage.duty)}</span></div>
+        <div class="bpm-block-row"><span class="k">周期参考</span><span class="v"><span class="bpm-chip">⏱ ${esc(stage.cycle)}</span></span></div>
+        <div class="bpm-block-row"><span class="k">产出物</span><span class="v">${esc(stage.deliverables)}</span></div>
+        <div class="bpm-block-row"><span class="k">云中台对接人</span><span class="v">${esc(stage.cloudContact)}</span></div>
+        <div class="bpm-block-guide">
+          <div class="bpm-collapse" onclick="toggleCollapse(this)">
+            <span>关键步骤</span><span class="bpm-collapse-arrow">▼</span>
+          </div>
+          <div class="bpm-collapse-body" style="display:none;">
+            <ol>${stage.guide.map(g => `<li>${esc(g.replace(/^\d+、\s*/, ''))}</li>`).join('')}</ol>
+          </div>
+        </div>
+      </div>`;
+    // v2 升级：标准物料下载区
+    const materialsBlock = (stage.materials && stage.materials.length) ? `
+      <div class="materials-block">
+        <div class="bpm-collapse" onclick="toggleCollapse(this)">
+          <span>📦 标准物料（${stage.materials.length} 份）</span><span class="bpm-collapse-arrow">▼</span>
+        </div>
+        <div class="bpm-collapse-body" style="display:none;">
+          <div class="materials-grid" style="margin-top:10px;">
+            ${stage.materials.map(m => `
+              <div class="material-item">
+                <div class="material-info">
+                  <div class="material-name">${esc(m.name)}<span class="material-fmt">${(MATERIAL_TEMPLATES[m.name] || {}).fmt || ''}</span></div>
+                  <div class="material-desc">${esc(m.desc)}</div>
+                </div>
+                <button class="material-dl" onclick="downloadMaterial('${stage.key}','${m.name}')">下载</button>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>` : '';
+    // v2.1 升级：每周进度输入（仅进行中阶段显示）
+    let progressBlock = '';
+    if (status === 'progress') {
+      const wkList = s.weeklyProgress || [];
+      const latest = wkList.length ? wkList[wkList.length - 1].percent : 0;
+      const thisWeek = getISOWeek();
+      const submitted = wkList.some(r => r.weekKey === thisWeek);
+      const historyHtml = wkList.slice().reverse().map(r => `
+        <div class="progress-history-item">
+          <span class="ph-week">${esc(r.weekKey)}</span>
+          <span class="ph-date">${esc(r.date)}</span>
+          <div class="ph-bar"><div class="ph-fill" style="width:${r.percent}%"></div></div>
+          <span class="ph-percent">${r.percent}%</span>
+          <span class="ph-note" title="${esc(r.note || '')}">${esc(r.note || '')}</span>
+        </div>`).join('');
+      progressBlock = `
+      <div class="progress-block">
+        <div class="progress-block-title">📈 每周进度${submitted ? '<span class="weekly-badge">本周已提交 ✓</span>' : '<span class="weekly-badge" style="background:var(--alert-upcoming)">本周待更新</span>'}</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar"><div class="progress-bar-fill" style="width:${latest}%"></div></div>
+          <span class="progress-bar-text">${latest}%</span>
+        </div>
+        <div class="progress-input-row">
+          <input type="number" min="0" max="100" id="progPct_${pid}_${sk}" value="${latest}" placeholder="进度 %">
+          <input type="text" id="progNote_${pid}_${sk}" placeholder="本周进展简述（可选）" style="flex:1">
+          <button class="btn btn-sm" onclick="saveWeeklyProgress('${pid}','${sk}', document.getElementById('progPct_${pid}_${sk}').value, document.getElementById('progNote_${pid}_${sk}').value)">保存本周</button>
+        </div>
+        ${historyHtml ? `<div class="progress-history">${historyHtml}</div>` : ''}
+      </div>`;
+    }
+    return `
+      <div class="timeline-stage ${status}">
+        <div class="stage-header">
+          <div class="stage-header-left">
+            <div class="stage-dot" style="background:${stageDotColor[status]}"></div>
+            <span class="stage-name">${stage.fullName}</span>
+          </div>
+          <span class="stage-status-tag ${status}">${statusMap[status]}</span>
+        </div>
+        ${bpmBlock}
+        <div class="milestone-list">${milestones}</div>
+        ${actionBtns ? `<div class="stage-actions">${actionBtns}</div>` : ''}
+        ${progressBlock}
+        ${materialsBlock}
+      </div>`;
+  }).join('');
+  document.getElementById('detailView').innerHTML = `
+    <div class="detail-header">
+      <button class="detail-back" onclick="backToDashboard()">← 返回看板</button>
+      <div class="detail-title-block">
+        <h2>${esc(proj.name)}</h2>
+        <p>${esc(proj.description)}</p>
+      </div>
+      <div class="detail-actions">
+        <button class="btn btn-sm" onclick="openModal('${proj.id}')">编辑</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelete('${proj.id}')">删除</button>
+      </div>
+    </div>
+    <div class="detail-persons">
+      <div class="detail-person-item"><span class="role-label">客户经理：</span><span class="role-name">${esc(proj.accountManager || '未指派')}</span></div>
+      <div class="detail-person-item"><span class="role-label">行业总监：</span><span class="role-name">${esc(proj.industryDirector || '未指派')}</span></div>
+    </div>
+    <div class="timeline">${timeline}</div>
+    <div class="framework-notes">
+      <div class="framework-notes-title">📌 框架说明（摘自《小云中台流程及工作框架 v2》）</div>
+      <ol>${FRAMEWORK_NOTES.map(n => `<li>${esc(n)}</li>`).join('')}</ol>
+    </div>
+  `;
+  document.getElementById('dashboardView').style.display = 'none';
+  document.getElementById('detailView').classList.add('active');
+  document.getElementById('reminderBar').style.display = 'none';
+  document.getElementById('statsRow').style.display = 'none';
+  document.querySelector('.stage-progress-row').style.display = 'none';
+  document.getElementById('bpmFlow').style.display = 'none';
+  document.querySelector('.filter-bar').style.display = 'none';
+}
+
+function backToDashboard() {
+  currentDetailId = null;
+  document.getElementById('detailView').classList.remove('active');
+  document.getElementById('dashboardView').style.display = 'block';
+  document.getElementById('reminderBar').style.display = '';
+  document.getElementById('statsRow').style.display = '';
+  document.querySelector('.stage-progress-row').style.display = '';
+  document.getElementById('bpmFlow').style.display = '';
+  document.querySelector('.filter-bar').style.display = '';
+  renderAll();
+}
+
+// ===== 阶段快捷更新 =====
+function quickUpdate(pid, stageKey, field, value) {
+  const proj = projects.find(p => p.id === pid);
+  if (!proj) return;
+  if (!proj.stages) proj.stages = {};
+  if (!proj.stages[stageKey]) proj.stages[stageKey] = {};
+  proj.stages[stageKey][field] = value;
+  if (field === 'bidResult') {
+    proj.stages[stageKey].completed = true;
+    if (value === 'lost') proj.status = 'terminated';
+    else if (value === 'won') { proj.status = 'active'; proj.stages.signing = { started: true }; }
+  }
+  saveData(); renderDetail(pid); showToast('已更新');
+}
+function markStageDone(pid, stageKey) {
+  const proj = projects.find(p => p.id === pid);
+  if (!proj?.stages?.[stageKey]) return;
+  proj.stages[stageKey].completed = true;
+  saveData(); renderDetail(pid); showToast('已标记完成');
+}
+function markStageProgress(pid, stageKey) {
+  const proj = projects.find(p => p.id === pid);
+  if (!proj?.stages?.[stageKey]) return;
+  proj.stages[stageKey].started = true;
+  saveData(); renderDetail(pid); showToast('已启动');
+}
+function markStagePending(pid, stageKey) {
+  const proj = projects.find(p => p.id === pid);
+  if (!proj?.stages?.[stageKey]) return;
+  proj.stages[stageKey].started = false;
+  proj.stages[stageKey].completed = false;
+  saveData(); renderDetail(pid); showToast('已回退至待启动');
+}
+function revertStage(pid, stageKey) {
+  const proj = projects.find(p => p.id === pid);
+  if (!proj?.stages?.[stageKey]) return;
+  proj.stages[stageKey].completed = false;
+  saveData(); renderDetail(pid); showToast('已回退至进行中');
+}
+
+// ===== 弹窗 =====
+function openModal(id) {
+  editingId = id || null;
+  const proj = id ? projects.find(p => p.id === id) : null;
+  document.getElementById('modalTitle').textContent = id ? '编辑项目' : '新增项目';
+  const s = proj ? proj.stages : { preSelection: {}, bidding: {}, signing: {}, delivery: {}, payment: {} };
+  document.getElementById('modalBody').innerHTML = `
+    <div class="form-section">
+      <div class="form-section-title">项目基本信息</div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label>项目名称 *</label>
+        <input type="text" id="f_name" value="${esc(proj?.name || '')}" placeholder="输入项目名称">
+      </div>
+      <div class="form-group">
+        <label>项目简介</label>
+        <textarea id="f_desc" placeholder="输入项目简介">${esc(proj?.description || '')}</textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>客户经理</label><input type="text" id="f_am" value="${esc(proj?.accountManager || '')}"></div>
+        <div class="form-group"><label>行业总监</label><input type="text" id="f_id" value="${esc(proj?.industryDirector || '')}"></div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">标前遴选阶段</div>
+      <div class="form-group"><label>标前遴选完成日期</label><input type="date" id="f_preDate" value="${s.preSelection?.preSelectionDone || ''}"></div>
+      <div class="form-check"><input type="checkbox" id="f_preDone" ${s.preSelection?.completed ? 'checked' : ''}><label for="f_preDone">标记此阶段已完成</label></div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">投标阶段</div>
+      <div class="form-group"><label>投标日期</label><input type="date" id="f_bidDate" value="${s.bidding?.bidDate || ''}"></div>
+      <div class="form-group"><label>投标结果</label>
+        <select id="f_bidResult">
+          <option value="">未出结果</option>
+          <option value="won" ${s.bidding?.bidResult === 'won' ? 'selected' : ''}>已中标</option>
+          <option value="lost" ${s.bidding?.bidResult === 'lost' ? 'selected' : ''}>未中标</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">签约阶段</div>
+      <div class="form-group"><label>签约日期</label><input type="date" id="f_signDate" value="${s.signing?.signDate || ''}"></div>
+      <div class="form-check"><input type="checkbox" id="f_signDone" ${s.signing?.completed ? 'checked' : ''}><label for="f_signDone">标记此阶段已完成</label></div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">交付阶段</div>
+      <div class="form-group"><label>交付日期（按合同约定）</label><input type="date" id="f_deliverDate" value="${s.delivery?.deliverDate || ''}"></div>
+      <div class="form-check"><input type="checkbox" id="f_deliverDone" ${s.delivery?.completed ? 'checked' : ''}><label for="f_deliverDone">标记此阶段已完成</label></div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">回款阶段</div>
+      <div class="form-group"><label>回款日期（按合同约定）</label><input type="date" id="f_payDate" value="${s.payment?.paymentDate || ''}"></div>
+      <div class="form-check"><input type="checkbox" id="f_payDone" ${s.payment?.completed ? 'checked' : ''}><label for="f_payDone">标记此阶段已完成</label></div>
+    </div>
+  `;
+  document.getElementById('modalOverlay').classList.add('active');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); editingId = null; }
+function saveProject() {
+  const name = document.getElementById('f_name').value.trim();
+  if (!name) { showToast('请输入项目名称'); return; }
+  const bidResult = document.getElementById('f_bidResult').value;
+  const data = {
+    name,
+    description: document.getElementById('f_desc').value.trim(),
+    accountManager: document.getElementById('f_am').value.trim(),
+    industryDirector: document.getElementById('f_id').value.trim(),
+    stages: {
+      preSelection: { preSelectionDone: document.getElementById('f_preDate').value, completed: document.getElementById('f_preDone').checked, started: !!document.getElementById('f_preDate').value },
+      bidding: { bidDate: document.getElementById('f_bidDate').value, bidResult: bidResult || null, completed: !!bidResult, started: !!document.getElementById('f_bidDate').value },
+      signing: { signDate: document.getElementById('f_signDate').value, completed: document.getElementById('f_signDone').checked, started: !!document.getElementById('f_signDate').value },
+      delivery: { deliverDate: document.getElementById('f_deliverDate').value, completed: document.getElementById('f_deliverDone').checked, started: !!document.getElementById('f_deliverDate').value },
+      payment: { paymentDate: document.getElementById('f_payDate').value, completed: document.getElementById('f_payDone').checked, started: !!document.getElementById('f_payDate').value }
+    }
+  };
+  if (bidResult === 'lost') data.status = 'terminated';
+  else if (bidResult === 'won') data.status = 'active';
+  if (editingId) {
+    const idx = projects.findIndex(p => p.id === editingId);
+    if (idx >= 0) projects[idx] = { ...projects[idx], ...data };
+    showToast('项目已更新');
+  } else {
+    data.id = 'p_' + Date.now();
+    projects.push(data);
+    showToast('项目已创建');
+  }
+  saveData(); closeModal(); renderAll();
+  if (currentDetailId) renderDetail(currentDetailId);
+}
+
+// ===== 删除 =====
+function confirmDelete(id) { deleteTargetId = id; document.getElementById('confirmOverlay').classList.add('active'); }
+function closeConfirm() { document.getElementById('confirmOverlay').classList.remove('active'); deleteTargetId = null; }
+function doDelete() {
+  projects = projects.filter(p => p.id !== deleteTargetId);
+  saveData(); closeConfirm(); backToDashboard(); showToast('项目已删除');
+}
+
+// ===== 物料下载 =====
+function downloadMaterial(stageKey, materialName) {
+  const tpl = MATERIAL_TEMPLATES[materialName];
+  if (!tpl) { showToast('物料模板未找到'); return; }
+  const isWord = tpl.fmt === 'Word';
+  const fileName = `${materialName}.${isWord ? 'doc' : 'xlsx'}`;
+  try {
+    if (isWord) buildWord(fileName, tpl);
+    else {
+      if (typeof XLSX === 'undefined') { showToast('Excel 组件未加载，请刷新页面'); return; }
+      buildExcel(fileName, tpl);
+    }
+    showToast(`已下载：${fileName}`);
+  } catch (e) { showToast('下载失败：' + e.message); }
+}
+
+// ===== 物料中心 =====
+function openMaterialsHub() {
+  document.getElementById('materialsHub')?.remove();
+  const hub = document.createElement('div');
+  hub.className = 'modal-overlay active';
+  hub.id = 'materialsHub';
+  hub.innerHTML = `
+    <div class="modal" style="width:720px;max-width:94vw;">
+      <div class="modal-header">
+        <div class="modal-title">📦 标准物料中心</div>
+        <button class="modal-close" onclick="document.getElementById('materialsHub').remove()">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.7;margin-bottom:14px;">
+          依据《小云中台流程框架 v2（优化）》与《标前评审标准物料包 1~12》整理，按 BPM 节点归集。<br>
+          每个阶段物料均可直接下载：表格类为 .xlsx（含公式与合并单元格），文本类为 .doc（Word / WPS 可直接编辑）。<br>
+          <span style="color:var(--accent-gold);">注：标准物料包 12 项（①-⑫）已全部对齐官方模板——第 6 项为 ICT项目标前评审会会议纪要及评审要点表、第 9 项为上会PPT模版；另内置投资类业财解析表、项目实施方案、项目评分表、收入承诺函、ICT立项要求、内控及管理速查表等官方附件模板。</span>
+        </div>
+        ${STAGE_CONFIG.map(s => `
+          <div style="margin-bottom:16px;">
+            <div style="font-size:12.5px;font-weight:600;color:var(--stage-pre);margin-bottom:4px;">
+              ${esc(s.fullName)} · ${esc(s.bpm)}
+            </div>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px;">
+              职责岗位：${esc(s.duty)} ｜ 周期参考：${esc(s.cycle)} ｜ 云中台对接人：${esc(s.cloudContact)}
+            </div>
+            <div class="materials-grid">
+              ${s.materials.map(m => `
+                <div class="material-item">
+                  <div class="material-info">
+                    <div class="material-name">${esc(m.name)}<span class="material-fmt">${(MATERIAL_TEMPLATES[m.name] || {}).fmt || ''}</span></div>
+                    <div class="material-desc">${esc(m.desc)}</div>
+                  </div>
+                  <button class="material-dl" onclick="downloadMaterial('${s.key}','${m.name}')">下载</button>
+                </div>`).join('')}
+            </div>
+          </div>
+        `).join('')}
+        <div class="framework-notes" style="margin-top:8px;">
+          <div class="framework-notes-title">📌 框架说明</div>
+          <ol>${FRAMEWORK_NOTES.map(n => `<li>${esc(n)}</li>`).join('')}</ol>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('materialsHub').remove()">关闭</button>
+      </div>
+    </div>`;
+  hub.addEventListener('click', e => { if (e.target === hub) hub.remove(); });
+  document.body.appendChild(hub);
+}
+
+// ===== 分享 =====
+function openShareModal() {
+  document.getElementById('shareOverlay').classList.add('active');
+  fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => {
+    document.getElementById('shareLanUrl').textContent = `http://${d.ip}:8765/金融交通项目看板.html`;
+  }).catch(() => {
+    document.getElementById('shareLanUrl').textContent = '无法获取，请手动查询本机 IP';
+  });
+}
+function closeShareModal() { document.getElementById('shareOverlay').classList.remove('active'); }
+
+// ===== 后端连接弹窗 =====
+function refreshBackendBadge() {
+  const btn = document.getElementById('backendBtn');
+  const statusEl = document.getElementById('backendStatus');
+  const connected = sbEnabled();
+  const canWrite = connected && !!getEditCode();
+  if (btn) btn.textContent = connected ? (canWrite ? '🔌 后端 已连' : '🔌 后端 只读') : '🔌 后端';
+  if (statusEl) {
+    statusEl.innerHTML = connected
+      ? (canWrite
+          ? '<span style="color:var(--accent-green);">● 已连接云端，可读写（多人协同）</span>'
+          : '<span style="color:var(--accent-gold);">● 已连接云端，只读（未填编辑口令）</span>')
+      : '<span style="color:var(--text-muted);">○ 未连接（仅本机 localStorage）</span>';
+  }
+}
+function openBackendModal() {
+  document.getElementById('backendUrl').textContent = SUPABASE_CONFIG.url;
+  // AnonKey 已内置：默认只展示掩码，需要更换时才展开输入框
+  const key = getAnonKey();
+  document.getElementById('backendKeyMasked').textContent =
+    key ? (key.slice(0, 14) + '·······' + key.slice(-6)) : '未配置内置密钥';
+  const keyInput = document.getElementById('backendKeyInput');
+  keyInput.value = ''; keyInput.style.display = 'none';
+  document.getElementById('backendCodeInput').value = getEditCode();
+  refreshBackendBadge();
+  document.getElementById('backendOverlay').classList.add('active');
+}
+// 展开/收起「更换 AnonKey」输入框
+function toggleKeyEditor() {
+  const el = document.getElementById('backendKeyInput');
+  el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';
+  if (el.style.display === 'block') el.focus();
+}
+function closeBackendModal() { document.getElementById('backendOverlay').classList.remove('active'); }
+
+// 保存 key → 建立连接 → 校验口令 → 拉取云端数据
+async function connectBackend() {
+  // 留空则直接用内置 AnonKey
+  const key = document.getElementById('backendKeyInput').value.trim() || getAnonKey();
+  const code = document.getElementById('backendCodeInput').value.trim();
+  if (!key) { showToast('未找到内置 AnonKey，请点「更换」粘贴一个'); return; }
+  if (!key.startsWith('eyJ')) { showToast('AnonKey 格式不对，应为 eyJ 开头的长串'); return; }
+  localStorage.setItem(SB_KEY_STORE, key);
+  if (code) localStorage.setItem(SB_EDIT_CODE_STORE, code);
+  else localStorage.removeItem(SB_EDIT_CODE_STORE);
+  if (!initSupabase()) { showToast('Supabase SDK 未加载，请刷新页面'); return; }
+  // 连通性测试：读一条
+  try {
+    const { error } = await _sb.from('projects').select('id').limit(1);
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    localStorage.removeItem(SB_KEY_STORE); _sb = null;
+    showToast('连接失败：' + e.message);
+    refreshBackendBadge();
+    return;
+  }
+  // 校验编辑口令（决定本次是读写还是只读）
+  let codeOk = false;
+  if (code) {
+    try {
+      const { data, error } = await _sb.rpc('edit_code_ok', { p_code: code });
+      if (error) throw new Error(error.message);
+      codeOk = data === true;
+    } catch (e) { console.warn('[Supabase] 口令校验失败:', e.message); }
+  }
+  // 拉全量数据覆盖本地
+  try {
+    const remote = await sbLoadAll();
+    if (remote.length) {
+      projects = remote;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+      localStorage.setItem(STORAGE_KEY + '_backup', JSON.stringify(projects));
+      renderAll();
+    }
+    showToast(`已连接云端，同步 ${remote.length} 个项目`);
+  } catch (e) { showToast('数据同步失败：' + e.message); }
+  if (code && !codeOk) {
+    localStorage.removeItem(SB_EDIT_CODE_STORE); // 口令无效则不保留，避免误以为能写
+    showToast('编辑口令不正确，已切换为只读模式');
+  }
+  closeBackendModal();
+  refreshBackendBadge();
+}
+function disconnectBackend() {
+  // 只断连接，保留本机记住的编辑口令，下次免输
+  localStorage.removeItem(SB_KEY_STORE);
+  _sb = null;
+  closeBackendModal();
+  refreshBackendBadge();
+  showToast('已断开云端，回到本机模式');
+}
+function copyShareLink() {
+  const url = document.getElementById('shareLocalUrl').textContent;
+  navigator.clipboard.writeText(url).then(() => showToast('链接已复制')).catch(() => showToast('复制失败'));
+}
+
+// ===== Toast =====
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+// ===== 实时时钟 =====
+function updateClock() {
+  const now = new Date();
+  const weekdays = ['日','一','二','三','四','五','六'];
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('systemDate').textContent = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 星期${weekdays[now.getDay()]}`;
+  document.getElementById('topbarClock').textContent = `${h}:${m}:${s}`;
+}
+
+// ===== 初始化 =====
+function init() {
+  updateClock();
+  setInterval(updateClock, 1000);
+  initSupabase();          // 用 localStorage 里的 key 尝试连接云端
+  refreshBackendBadge();
+  loadData();
+  renderAll();
+}
+init();
+</script>
+</body>
+</html>
