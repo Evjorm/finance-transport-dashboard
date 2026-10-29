@@ -1628,7 +1628,7 @@ ${sections}
 // AnonKey 存在浏览器 localStorage，不进源码、不进对话；也可直接写死在 anonKey 里
 const SUPABASE_CONFIG = {
   url: 'https://dvkuppytthuaankknzbu.supabase.co',
-  anonKey: 'sb_publishable_uxrUsJ69ULFlkO5dKJox4Q_pefKhY4a'
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2a3VwcHl0dGh1YWFua2tuemJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMzQ3NDgsImV4cCI6MjEwODgxMDc0OH0.zmTwL9wwJG0IVEjK7oQ1M6Jeft5wIPLVU2qpPTOu3-A'
 };
 const SB_KEY_STORE = 'finance_transport_sb_anon_key';
 const SB_EDIT_CODE_STORE = 'finance_transport_edit_code'; // 编辑口令，仅存本机
@@ -1639,12 +1639,19 @@ function getAnonKey() {
   if (stored) return stored;
   return SUPABASE_CONFIG.anonKey || '';
 }
-// 用当前 key 重建客户端；返回是否连接成功
+// 用当前 key 初始化/重建客户端；返回是否连接成功
+// 核心：只在 key 真正变化时才新建实例，避免 SDK 报 "Multiple GoTrueClient" 警告
 function initSupabase() {
   const key = getAnonKey();
   if (typeof supabase === 'undefined' || !key) { _sb = null; return false; }
-  try { _sb = supabase.createClient(SUPABASE_CONFIG.url, key); return true; }
-  catch (e) { console.warn('[Supabase] 初始化失败:', e.message); _sb = null; return false; }
+  // 已经有实例且 key 没变 → 直接复用，不重建
+  if (_sb && _sb.supabaseKey === key) return true;
+  try {
+    _sb = supabase.createClient(SUPABASE_CONFIG.url, key, {
+      auth: { persistSession: false, autoRefreshToken: false } // 我们完全不用 Auth，关掉防告警
+    });
+    return true;
+  } catch (e) { console.warn('[Supabase] 初始化失败:', e.message); _sb = null; return false; }
 }
 function sbEnabled() { return !!_sb; }
 // 编辑口令：未设置时云端写操作自动跳过（只读模式）
