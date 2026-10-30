@@ -3,7 +3,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>金融交通项目看板</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+<link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;📊&lt;/text&gt;&lt;/svg&gt;">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&amp;family=Noto+Serif+SC:wght@600;700&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- Supabase 后端 SDK（UMD 格式，window.supabase） -->
@@ -112,6 +112,23 @@ body {
 .stat-card.urgent .stat-value { color: var(--alert-urgent); }
 .stat-card.upcoming .stat-value { color: var(--alert-upcoming); }
 .stat-card.overdue .stat-value { color: var(--alert-overdue); }
+/* 可点击统计卡（紧急/即将到期/已逾期） */
+.stat-card.clickable { cursor: pointer; }
+.stat-card.clickable:hover { border-color: var(--accent-teal); }
+.stat-card.clickable:hover .stat-value { text-decoration: underline; text-underline-offset: 3px; }
+/* 统计明细弹窗列表项 */
+.stat-detail-item {
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px;
+  margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+}
+.stat-detail-item:hover { border-color: var(--accent-teal); background: rgba(13,148,136,0.07); }
+.stat-detail-item .sd-name { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.stat-detail-item .sd-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.stat-detail-item.urgent .sd-dot { background: var(--alert-urgent); }
+.stat-detail-item.upcoming .sd-dot { background: var(--alert-upcoming); }
+.stat-detail-item.overdue .sd-dot { background: var(--alert-overdue); }
+.stat-detail-item .sd-items { margin: 6px 0 0 16px; font-size: 12px; color: var(--text-secondary); line-height: 1.9; }
+.stat-detail-item .sd-go { margin-left: auto; font-size: 11px; color: var(--text-muted); font-weight: 400; }
 
 /* ===== 阶段进展展示 ===== */
 .stage-progress-row {
@@ -442,46 +459,37 @@ body {
     <div class="topbar-logo">金</div>
     <div class="topbar-title">
       <h1>金融交通项目看板</h1>
-      <span id="systemDate">2026年10月29日 星期四</span>
+      <span id="systemDate">2026年10月30日 星期五</span>
     </div>
   </div>
   <div class="topbar-right">
-    <div class="topbar-date" id="topbarClock">11:17:04</div>
+    <div class="topbar-date" id="topbarClock">14:03:05</div>
     <div class="version-badge" title="版本标记，不可更改">v2.0 · <span class="vb-owner">金融交通事业部</span></div>
-    <div class="save-indicator" id="saveIndicator">已保存</div>
+    <div class="save-indicator saving" id="saveIndicator">保存中...</div>
     <button class="btn btn-sm" onclick="openBackendModal()" id="backendBtn" title="配置云端后端，实现多人实时协同">🔌 后端 只读</button>
     <button class="btn btn-sm" onclick="openShareModal()">🔗 分享</button>
     <button class="btn btn-sm" onclick="openMaterialsHub()">📦 物料中心</button>
-    <button class="btn btn-sm" onclick="importHeadProjects()" title="导入2026年头部签约项目（按合同号去重）">🏆 导入头部项目</button>
     <button class="btn btn-sm" onclick="exportData()" title="导出为 Excel 项目台账">📤 导出 Excel</button>
     <button class="btn btn-sm" onclick="document.getElementById('importFile').click()" title="从 Excel 项目台账导入">📥 导入 Excel</button>
     <input type="file" id="importFile" accept=".xlsx,.xls,.json" style="display:none" onchange="importData(event)">
-    <button class="btn btn-primary" id="btnAddProject" onclick="openModal()">新增项目</button>
+    <button class="btn btn-primary" id="btnAddProject" onclick="openModal()" style="display: none;">新增项目</button>
   </div>
 </div>
 
-<!-- 提醒栏 -->
-<div class="reminder-bar active" id="reminderBar">
-  <div class="reminder-bar-inner">
-    <div class="reminder-icon overdue" id="reminderIcon">⚠</div>
-    <div class="reminder-content">
-      <h3 id="reminderTitle">5 项已逾期  ·  0 项紧急  ·  0 项即将到期</h3>
-      <div class="reminder-list" id="reminderList"><span class="reminder-tag overdue" onclick="openDetail('head_HT20260202')">大模型平台建设 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_HT20260101')">西安高铁东站智慧交通软件开发 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_HT20260102')">西安高铁东站智慧交通设备采购 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_HT20260201')">省级视频云联网监测云网资源 - 交付资料准备已逾期</span><span class="reminder-tag overdue" onclick="openDetail('head_HT20260301')">高速公路联网收费运维 - 交付资料准备已逾期</span></div>
-    </div>
-  </div>
-</div>
+<!-- 提醒栏（默认折叠，点击标题展开详情） -->
+
 
 <!-- 统计概览 -->
 <div class="stats-row" id="statsRow">
   <div class="stat-card total"><span class="stat-label">项目总数</span><span class="stat-value" id="statTotal">6</span></div>
-  <div class="stat-card urgent"><span class="stat-label">紧急（今日到期）</span><span class="stat-value" id="statUrgent">0</span></div>
-  <div class="stat-card upcoming"><span class="stat-label">即将到期（3天内）</span><span class="stat-value" id="statUpcoming">0</span></div>
-  <div class="stat-card overdue"><span class="stat-label">已逾期</span><span class="stat-value" id="statOverdue">5</span></div>
+  <div class="stat-card clickable urgent" onclick="openStatDetail('urgent')"><span class="stat-label">紧急（今日到期）</span><span class="stat-value" id="statUrgent">0</span></div>
+  <div class="stat-card clickable upcoming" onclick="openStatDetail('upcoming')"><span class="stat-label">即将到期（3天内）</span><span class="stat-value" id="statUpcoming">0</span></div>
+  <div class="stat-card clickable overdue" onclick="openStatDetail('overdue')"><span class="stat-label">已逾期</span><span class="stat-value" id="statOverdue">5</span></div>
 </div>
 
 <!-- 阶段进展展示 -->
 <div class="stage-progress-row">
-  <div class="sp-card sp-pre" data-stage="preSelection" onclick="filterByStage('preSelection')"><span class="sp-dot"></span><span class="sp-label">标前遴选</span><span class="sp-value" id="spPre">1</span></div>
+  <div class="sp-card sp-pre" data-stage="preSelection" onclick="filterByStage('preSelection')"><span class="sp-dot"></span><span class="sp-label">标前遴选</span><span class="sp-value" id="spPre">0</span></div>
   <div class="sp-card sp-bid" data-stage="bidding" onclick="filterByStage('bidding')"><span class="sp-dot"></span><span class="sp-label">投标</span><span class="sp-value" id="spBid">0</span></div>
   <div class="sp-card sp-sign" data-stage="signing" onclick="filterByStage('signing')"><span class="sp-dot"></span><span class="sp-label">签约</span><span class="sp-value" id="spSign">5</span></div>
   <div class="sp-card sp-deliver" data-stage="delivery" onclick="filterByStage('delivery')"><span class="sp-dot"></span><span class="sp-label">交付</span><span class="sp-value" id="spDeliver">0</span></div>
@@ -559,77 +567,40 @@ body {
 <!-- 看板视图 -->
 <div class="dashboard-view" id="dashboardView">
   <div class="project-grid" id="projectGrid" style="display: grid;">
-      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_HT20260202')">
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('_smoke')">
         <div class="card-header">
-          <div class="card-title">大模型平台建设</div>
-          <div class="card-desc">交通行业大模型训练与推理平台建设</div>
+          <div class="card-title">test</div>
+          <div class="card-desc"></div>
         </div>
         <div class="card-persons">
-          <span>👤 王芳</span>
-          <span>👔 张伟</span>
+          <span>👤 未指派</span>
+          <span>👔 未指派</span>
         </div>
-        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
-        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label " data-stage="bidding">投标</div><div class="stage-label " data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg terminated"></div><div class="stage-seg progress"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
         <div class="stage-info-block">
           
           <div class="stage-info-row done">
             <span class="si-label">上一阶段</span>
-            <span class="si-name">投标</span>
+            <span class="si-name">标前遴选</span>
             <span class="si-status done">已完成</span>
-            <span class="si-date">2026/03/01</span>
+            <span class="si-date">—</span>
             <span class="si-days done">已完成</span>
           </div>
-          <div class="stage-info-row done">
+          <div class="stage-info-row terminated">
             <span class="si-label">当前阶段</span>
-            <span class="si-name">签约</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">2026/04/15</span>
-            <span class="si-days overdue">逾期197天</span>
-          </div>
-          
-          <div class="stage-info-row pending">
-            <span class="si-label">下一阶段</span>
-            <span class="si-name">交付</span>
-            <span class="si-status pending">待启动</span>
-            <span class="si-date">—</span>
-            <span class="si-days pending"></span>
-          </div>
-        </div>
-      </div>
-      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_HT20260101')">
-        <div class="card-header">
-          <div class="card-title">西安高铁东站智慧交通软件开发</div>
-          <div class="card-desc">西安高铁东站智慧交通平台软件开发与系统集成</div>
-        </div>
-        <div class="card-persons">
-          <span>👤 张涛</span>
-          <span>👔 李明</span>
-        </div>
-        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
-        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
-        <div class="stage-info-block">
-          
-          <div class="stage-info-row done">
-            <span class="si-label">上一阶段</span>
             <span class="si-name">投标</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">2026/01/20</span>
-            <span class="si-days done">已完成</span>
-          </div>
-          <div class="stage-info-row done">
-            <span class="si-label">当前阶段</span>
-            <span class="si-name">签约</span>
-            <span class="si-status done">已完成</span>
-            <span class="si-date">2026/03/10</span>
-            <span class="si-days overdue">逾期233天</span>
+            <span class="si-status terminated">已终止</span>
+            <span class="si-date">—</span>
+            <span class="si-days normal"></span>
           </div>
           
-          <div class="stage-info-row pending">
+          <div class="stage-info-row progress">
             <span class="si-label">下一阶段</span>
-            <span class="si-name">交付</span>
-            <span class="si-status pending">待启动</span>
+            <span class="si-name">签约</span>
+            <span class="si-status progress">进行中</span>
             <span class="si-date">—</span>
-            <span class="si-days pending"></span>
+            <span class="si-days progress"></span>
           </div>
         </div>
       </div>
@@ -658,7 +629,7 @@ body {
             <span class="si-name">签约</span>
             <span class="si-status done">已完成</span>
             <span class="si-date">2026/03/10</span>
-            <span class="si-days overdue">逾期233天</span>
+            <span class="si-days overdue">逾期234天</span>
           </div>
           
           <div class="stage-info-row pending">
@@ -695,7 +666,7 @@ body {
             <span class="si-name">签约</span>
             <span class="si-status done">已完成</span>
             <span class="si-date">2026/04/01</span>
-            <span class="si-days overdue">逾期211天</span>
+            <span class="si-days overdue">逾期212天</span>
           </div>
           
           <div class="stage-info-row pending">
@@ -707,30 +678,37 @@ body {
           </div>
         </div>
       </div>
-      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('_smoke')">
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_HT20260202')">
         <div class="card-header">
-          <div class="card-title">test</div>
-          <div class="card-desc"></div>
+          <div class="card-title">大模型平台建设</div>
+          <div class="card-desc">交通行业大模型训练与推理平台建设</div>
         </div>
         <div class="card-persons">
-          <span>👤 未指派</span>
-          <span>👔 未指派</span>
+          <span>👤 王芳</span>
+          <span>👔 张伟</span>
         </div>
-        <div class="stage-labels"><div class="stage-label active" data-stage="preSelection">标前遴选</div><div class="stage-label " data-stage="bidding">投标</div><div class="stage-label " data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
-        <div class="stage-bar"><div class="stage-seg pending"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
         <div class="stage-info-block">
           
-          <div class="stage-info-row pending">
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/03/01</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
             <span class="si-label">当前阶段</span>
-            <span class="si-name">标前遴选</span>
-            <span class="si-status pending">待启动</span>
-            <span class="si-date">—</span>
-            <span class="si-days normal"></span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/04/15</span>
+            <span class="si-days overdue">逾期198天</span>
           </div>
           
           <div class="stage-info-row pending">
             <span class="si-label">下一阶段</span>
-            <span class="si-name">投标</span>
+            <span class="si-name">交付</span>
             <span class="si-status pending">待启动</span>
             <span class="si-date">—</span>
             <span class="si-days pending"></span>
@@ -762,7 +740,44 @@ body {
             <span class="si-name">签约</span>
             <span class="si-status done">已完成</span>
             <span class="si-date">2026/04/20</span>
-            <span class="si-days overdue">逾期192天</span>
+            <span class="si-days overdue">逾期193天</span>
+          </div>
+          
+          <div class="stage-info-row pending">
+            <span class="si-label">下一阶段</span>
+            <span class="si-name">交付</span>
+            <span class="si-status pending">待启动</span>
+            <span class="si-date">—</span>
+            <span class="si-days pending"></span>
+          </div>
+        </div>
+      </div>
+      <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('head_HT20260101')">
+        <div class="card-header">
+          <div class="card-title">西安高铁东站智慧交通软件开发</div>
+          <div class="card-desc">西安高铁东站智慧交通平台软件开发与系统集成</div>
+        </div>
+        <div class="card-persons">
+          <span>👤 张涛</span>
+          <span>👔 李明</span>
+        </div>
+        <div class="stage-labels"><div class="stage-label done" data-stage="preSelection">标前遴选</div><div class="stage-label done" data-stage="bidding">投标</div><div class="stage-label done" data-stage="signing">签约</div><div class="stage-label " data-stage="delivery">交付</div><div class="stage-label " data-stage="payment">回款</div></div>
+        <div class="stage-bar"><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg done"></div><div class="stage-seg pending"></div><div class="stage-seg pending"></div></div>
+        <div class="stage-info-block">
+          
+          <div class="stage-info-row done">
+            <span class="si-label">上一阶段</span>
+            <span class="si-name">投标</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/01/20</span>
+            <span class="si-days done">已完成</span>
+          </div>
+          <div class="stage-info-row done">
+            <span class="si-label">当前阶段</span>
+            <span class="si-name">签约</span>
+            <span class="si-status done">已完成</span>
+            <span class="si-date">2026/03/10</span>
+            <span class="si-days overdue">逾期234天</span>
           </div>
           
           <div class="stage-info-row pending">
@@ -794,6 +809,20 @@ body {
   </div>
 </div>
 
+<!-- 统计明细弹窗（点击紧急/即将到期/已逾期数字打开） -->
+<div class="modal-overlay" id="statDetailOverlay">
+  <div class="modal" style="width:620px;">
+    <div class="modal-header">
+      <div class="modal-title" id="statDetailTitle">明细</div>
+      <button class="modal-close" onclick="closeStatDetail()">×</button>
+    </div>
+    <div class="modal-body" id="statDetailBody" style="max-height:60vh;overflow-y:auto;"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeStatDetail()">关闭</button>
+    </div>
+  </div>
+</div>
+
 <!-- 分享弹窗 -->
 <div class="modal-overlay" id="shareOverlay">
   <div class="modal" style="width:520px;">
@@ -803,20 +832,16 @@ body {
     </div>
     <div class="modal-body">
       <div style="font-size:13px;color:var(--text-secondary);line-height:2;">
-        <p style="margin-bottom:12px;">通过以下方式将看板分享给团队成员：</p>
+        <p style="margin-bottom:12px;">看板已部署在公网，把链接发给团队成员即可（手机 / 电脑均可打开）：</p>
         <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px;">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">本机访问</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-teal);" id="shareLocalUrl">http://localhost:8765/金融交通项目看板.html</div>
-        </div>
-        <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:12px;">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">局域网访问（需启动服务器）</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--stage-pre);" id="shareLanUrl">获取中...</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">看板公网地址</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-teal);word-break:break-all;" id="shareLocalUrl">https://evjorm.github.io/finance-transport-dashboard/</div>
         </div>
         <div style="font-size:11.5px;color:var(--text-muted);line-height:1.8;">
-          <p>💡 局域网共享步骤：</p>
-          <p>1. 在看板文件所在目录打开命令行</p>
-          <p>2. 运行 <code style="background:rgba(148,163,184,0.15);padding:2px 6px;border-radius:3px;">python -m http.server 8765</code></p>
-          <p>3. 同事通过局域网 IP 访问即可</p>
+          <p>💡 权限说明：</p>
+          <p>· 打开链接默认<b style="color:var(--accent-gold);">只读</b>，数据来自云端，全员实时同步</p>
+          <p>· 需要编辑的成员：点「🔌 后端」输入编辑口令即可变为可写</p>
+          <p>· 也可以用「导出 Excel」做离线备份与分发</p>
         </div>
       </div>
     </div>
@@ -855,6 +880,10 @@ body {
         <div style="margin-bottom:12px;">
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;">编辑口令（写入云端必需，填一次本机自动记住）</div>
           <input id="backendCodeInput" type="password" placeholder="输入编辑口令，留空则为只读模式" style="width:100%;box-sizing:border-box;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:9px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-primary);">
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:5px;">记录人姓名（录入周进度时自动填充）</div>
+          <input id="backendRecorderInput" type="text" placeholder="如：张三" style="width:100%;box-sizing:border-box;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:9px;font-size:12px;color:var(--text-primary);">
         </div>
         <div style="font-size:11.5px;color:var(--text-muted);line-height:1.8;background:rgba(59,130,246,0.06);border-left:3px solid var(--accent-blue);padding:10px 12px;border-radius:4px;">
           <p>💡 获取 AnonKey：本机 PowerShell 运行</p>
@@ -1633,6 +1662,7 @@ const SUPABASE_CONFIG = {
 };
 const SB_KEY_STORE = 'finance_transport_sb_anon_key';
 const SB_EDIT_CODE_STORE = 'finance_transport_edit_code'; // 编辑口令，仅存本机
+const SB_RECORDER_STORE = 'finance_transport_recorder'; // 记录人姓名，仅存本机
 let _sb = null;
 
 function getAnonKey() {
@@ -1657,6 +1687,8 @@ function initSupabase() {
 function sbEnabled() { return !!_sb; }
 // 编辑口令：未设置时云端写操作自动跳过（只读模式）
 function getEditCode() { return localStorage.getItem(SB_EDIT_CODE_STORE) || ''; }
+// 记录人：未设置时返回空串
+function getRecorder() { return localStorage.getItem(SB_RECORDER_STORE) || ''; }
 // 是否有云端写权限（同时连了后端 + 有编辑口令）
 function canWrite() { return sbEnabled() && !!getEditCode(); }
 // 只读拦截：无权限统一 toast 并 return；UI 层也会隐藏编辑入口，这里是最后兜底
@@ -1740,7 +1772,7 @@ async function sbUpsertProject(p) {
     if (error) console.warn('[Supabase] project 保存失败:', error.message);
   } catch (e) { console.warn('[Supabase] project 保存异常:', e.message); }
 }
-async function sbUpsertWeekly(pid, stageKey, weekKey, percent, note, progressDate) {
+async function sbUpsertWeekly(pid, stageKey, weekKey, progress, problem, recorder, progressDate) {
   if (!sbEnabled()) return;
   const code = getEditCode();
   if (!code) return;
@@ -1748,7 +1780,8 @@ async function sbUpsertWeekly(pid, stageKey, weekKey, percent, note, progressDat
     const { error } = await _sb.rpc('save_weekly', {
       p_row: {
         project_id: pid, stage_key: stageKey, week_key: weekKey,
-        progress_date: progressDate, percent, note: note || ''
+        progress_date: progressDate, percent: 0, note: progress || '',
+        problem: problem || '', recorder: recorder || ''
       },
       p_code: code
     });
@@ -1796,7 +1829,8 @@ async function sbLoadAll() {
     if (!wpMap[w.project_id]) wpMap[w.project_id] = {};
     if (!wpMap[w.project_id][w.stage_key]) wpMap[w.project_id][w.stage_key] = [];
     wpMap[w.project_id][w.stage_key].push({
-      weekKey: w.week_key, date: w.progress_date, percent: w.percent, note: w.note || ''
+      weekKey: w.week_key, date: w.progress_date,
+      progress: w.note || '', problem: w.problem || '', recorder: w.recorder || ''
     });
   });
   const local = (rows || []).map(rowToProject);
@@ -1838,20 +1872,10 @@ function loadData() {
   }
 }
 
-// 手动导入头部项目（给已有数据的用户使用，按合同号去重）
-function importHeadProjects() {
-  const seeds = seedHeadProjects();
-  const existingIds = new Set(projects.map(p => p.id));
-  const newOnes = seeds.filter(s => !existingIds.has(s.id));
-  if (!newOnes.length) { showToast('头部项目已全部导入'); return; }
-  projects.push(...newOnes);
-  saveData(); renderAll();
-  showToast(`已导入 ${newOnes.length} 个头部项目`);
-}
 // ===== Excel 台账导入导出 =====
 // 台账列定义（导出与导入共用，导入时按表头名称匹配，容忍列顺序变化）
 const EXCEL_COLS = [
-  'ID','项目名称','项目描述','客户经理','行业总监','项目状态','当前阶段','阶段进度%','最近进度更新',
+  'ID','项目名称','项目描述','客户经理','行业总监','项目状态','当前阶段','最新进展','最近进度更新',
   '标前遴选完成日','标前遴选状态','投标日期','投标结果','投标状态','签约日期','签约状态',
   '交付日期','交付状态','回款日期','回款状态'
 ];
@@ -1896,7 +1920,7 @@ function exportData() {
       p.industryDirector || '',
       p.status === 'terminated' ? '已终止' : (p.status === 'completed' ? '已完成' : '进行中'),
       STAGE_CONFIG[curIdx] ? STAGE_CONFIG[curIdx].name : '',
-      wkList.length ? wkList[wkList.length - 1].percent : '',
+      wkList.length ? (wkList[wkList.length - 1].progress || '') : '',
       wkList.length ? wkList[wkList.length - 1].weekKey : '',
       st.preSelection?.preSelectionDone || '', stageStateText(st.preSelection),
       st.bidding?.bidDate || '',
@@ -1951,16 +1975,14 @@ function parseProjectSheet(aoa) {
     const br = String(pick(row, '投标结果') || '').trim();
     if (br === '中标') p.stages.bidding.bidResult = 'won';
     else if (br === '未中标') { p.stages.bidding.bidResult = 'lost'; p.status = 'terminated'; }
-    // 进度列：有值则补一条当周记录，保证往返不丢进度
-    const pctRaw = pick(row, '阶段进度%');
-    const pctEmpty = String(pctRaw === null || pctRaw === undefined ? '' : pctRaw).trim() === '';
-    const pct = Number(pctRaw);
+    // 进展列：有值则补一条当周记录，保证往返不丢进度（兼容旧表头「阶段进度%」）
+    const progText = String(pick(row, '最新进展') || pick(row, '阶段进度%') || '').trim();
     const curKey = ['preSelection','bidding','signing','delivery','payment']
       .find(k => p.stages[k].started && !p.stages[k].completed);
-    if (curKey && !pctEmpty && !isNaN(pct) && pct >= 0) {
+    if (curKey && progText) {
       p.stages[curKey].weeklyProgress = [{
         weekKey: String(pick(row, '最近进度更新') || '').trim() || getISOWeek(),
-        date: todayStr(), percent: Math.min(100, Math.round(pct)), note: ''
+        date: todayStr(), progress: progText, problem: '', recorder: ''
       }];
     }
     out.push(p);
@@ -2008,33 +2030,28 @@ function getISOWeek(dateStr) {
   const weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 }
-// 获取某阶段当前最新进度（历史里最后一条）
-function getStageProgress(proj, stageKey) {
-  const list = proj.stages?.[stageKey]?.weeklyProgress || [];
-  return list.length ? list[list.length - 1].percent : 0;
-}
 // 判断某阶段本周是否已提交进度
 function isWeeklySubmitted(proj, stageKey) {
   const thisWeek = getISOWeek();
   const list = proj.stages?.[stageKey]?.weeklyProgress || [];
   return list.some(r => r.weekKey === thisWeek);
 }
-// 保存某阶段本周进度
-function saveWeeklyProgress(pid, stageKey, percent, note) {
+// 保存某阶段本周进度（进展 + 问题 + 记录人）
+function saveWeeklyProgress(pid, stageKey, progress, problem) {
   if (!requireWrite('录入每周进度')) return;
   const proj = projects.find(p => p.id === pid);
   if (!proj) return;
   if (!proj.stages[stageKey].weeklyProgress) proj.stages[stageKey].weeklyProgress = [];
-  const wk = getISOWeek(), today = todayStr();
+  const wk = getISOWeek(), today = todayStr(), recorder = getRecorder();
   const list = proj.stages[stageKey].weeklyProgress;
   // 本周已存在则更新，否则追加
   const exist = list.find(r => r.weekKey === wk);
-  if (exist) { exist.percent = percent; exist.note = note; exist.date = today; }
-  else list.push({ weekKey: wk, date: today, percent, note });
+  if (exist) { exist.progress = progress; exist.problem = problem; exist.recorder = recorder; exist.date = today; }
+  else list.push({ weekKey: wk, date: today, progress, problem, recorder });
   saveData(); renderDetail(pid);
   showToast(`进度已保存（${wk}）`);
   // Supabase 同步 weekly_progress 子表
-  sbUpsertWeekly(pid, stageKey, wk, percent, note, today);
+  sbUpsertWeekly(pid, stageKey, wk, progress, problem, recorder, today);
 }
 
 function getStageStatus(proj, stageKey) {
@@ -2134,6 +2151,53 @@ function renderAll() {
   renderBpmFlow();
 }
 
+// ===== 统计明细弹窗：点击「紧急/即将到期/已逾期」数字查看具体事项 =====
+const STAT_DETAIL_META = {
+  urgent:   { label: '紧急（今日到期）', cls: 'urgent' },
+  upcoming: { label: '即将到期（3天内）', cls: 'upcoming' },
+  overdue:  { label: '已逾期', cls: 'overdue' }
+};
+function openStatDetail(type) {
+  const meta = STAT_DETAIL_META[type];
+  if (!meta) return;
+  const items = calcReminders().filter(r => r.type === type);
+  // 同一项目可能命中多条提醒，按项目聚合展示
+  const grouped = {};
+  items.forEach(r => {
+    const proj = projects.find(p => p.id === r.id);
+    const name = proj ? proj.name : r.text.split(' - ')[0];
+    // r.text 形如「项目名 - 事项」，取事项部分
+    const detail = r.text.includes(' - ') ? r.text.split(' - ').slice(1).join(' - ') : r.text;
+    if (!grouped[r.id]) grouped[r.id] = { id: r.id, name, details: [] };
+    grouped[r.id].details.push(detail);
+  });
+  const groups = Object.values(grouped);
+  // 同一项目命中多条时同时展示项目数与事项数，避免与卡片数字对不上
+  const countText = items.length === groups.length
+    ? `共 ${groups.length} 个项目`
+    : `${groups.length} 个项目 · ${items.length} 项事项`;
+  document.getElementById('statDetailTitle').textContent = `${meta.label} · ${countText}`;
+  document.getElementById('statDetailBody').innerHTML = groups.length
+    ? groups.map(g => `
+        <div class="stat-detail-item ${meta.cls}" onclick="openDetailFromStat('${g.id}')">
+          <div class="sd-name"><span class="sd-dot"></span>${esc(g.name)}<span class="sd-go">查看 ›</span></div>
+          <div class="sd-items">${g.details.map(d => `· ${esc(d)}`).join('<br>')}</div>
+        </div>`).join('')
+    : `<div style="padding:28px;text-align:center;color:var(--text-muted);font-size:13px;">暂无「${esc(meta.label)}」事项</div>`;
+  document.getElementById('statDetailOverlay').classList.add('active');
+}
+function closeStatDetail() { document.getElementById('statDetailOverlay').classList.remove('active'); }
+function openDetailFromStat(id) { closeStatDetail(); openDetail(id); }
+
+// 提醒条展开/折叠
+function toggleReminderList() {
+  const list = document.getElementById('reminderList');
+  const toggle = document.getElementById('reminderToggle');
+  const isHidden = list.style.display === 'none';
+  list.style.display = isHidden ? 'flex' : 'none';
+  toggle.textContent = isHidden ? '▲ 点击收起' : '▼ 点击展开';
+}
+
 function renderReminder() {
   const reminders = calcReminders();
   const bar = document.getElementById('reminderBar');
@@ -2147,10 +2211,11 @@ function renderReminder() {
   bar.classList.add('active');
   icon.className = 'reminder-icon ' + (overdue ? 'overdue' : urgent ? 'urgent' : 'upcoming');
   icon.textContent = overdue ? '⚠' : urgent ? '!' : '◷';
-  title.textContent = `${overdue} 项已逾期  ·  ${urgent} 项紧急  ·  ${upcoming} 项即将到期`;
+  title.innerHTML = `${overdue} 项已逾期  ·  ${urgent} 项紧急  ·  ${upcoming} 项即将到期 <span id="reminderToggle" style="font-size:11px;color:var(--text-muted);">▼ 点击展开</span>`;
   list.innerHTML = reminders.map(r =>
     `<span class="reminder-tag ${r.type}" onclick="openDetail('${r.id}')">${esc(r.text)}</span>`
   ).join('');
+  list.style.display = 'none';
   // 统计
   document.getElementById('statTotal').textContent = projects.length;
   document.getElementById('statUrgent').textContent = urgent;
@@ -2424,34 +2489,32 @@ function renderDetail(id) {
     let progressBlock = '';
     if (status === 'progress') {
       const wkList = s.weeklyProgress || [];
-      const latest = wkList.length ? wkList[wkList.length - 1].percent : 0;
       const thisWeek = getISOWeek();
       const submitted = wkList.some(r => r.weekKey === thisWeek);
+      // 历史记录：按时间倒序列出，含进展、问题、记录人
       const historyHtml = wkList.slice().reverse().map(r => `
-        <div class="progress-history-item">
-          <span class="ph-week">${esc(r.weekKey)}</span>
-          <span class="ph-date">${esc(r.date)}</span>
-          <div class="ph-bar"><div class="ph-fill" style="width:${r.percent}%"></div></div>
-          <span class="ph-percent">${r.percent}%</span>
-          <span class="ph-note" title="${esc(r.note || '')}">${esc(r.note || '')}</span>
+        <div class="progress-history-item" style="flex-direction:column;align-items:flex-start;gap:4px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:10px;width:100%;">
+            <span class="ph-week">${esc(r.weekKey)}</span>
+            <span class="ph-date">${esc(r.date)}</span>
+            <span style="color:var(--text-muted);font-size:11px;margin-left:auto;">记录人：${esc(r.recorder || '—')}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-primary);width:100%;"><span style="color:var(--accent-teal);">进展：</span>${esc(r.progress || '')}</div>
+          ${r.problem ? `<div style="font-size:12px;color:var(--alert-upcoming);width:100%;"><span style="color:var(--alert-upcoming);">问题：</span>${esc(r.problem)}</div>` : ''}
         </div>`).join('');
       // 只读模式下去掉输入框和保存按钮，只留展示
       const inputRow = cw ? `
-        <div class="progress-input-row">
-          <input type="number" min="0" max="100" id="progPct_${pid}_${sk}" value="${latest}" placeholder="进度 %">
-          <input type="text" id="progNote_${pid}_${sk}" placeholder="本周进展简述（可选）" style="flex:1">
-          <button class="btn btn-sm" onclick="saveWeeklyProgress('${pid}','${sk}', document.getElementById('progPct_${pid}_${sk}').value, document.getElementById('progNote_${pid}_${sk}').value)">保存本周</button>
+        <div class="progress-input-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+          <textarea id="progProgress_${pid}_${sk}" placeholder="本周进展（必填）" rows="2" style="width:100%;box-sizing:border-box;background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:13px;color:var(--text-primary);resize:vertical;"></textarea>
+          <textarea id="progProblem_${pid}_${sk}" placeholder="遇到的问题（可选）" rows="2" style="width:100%;box-sizing:border-box;background:var(--bg-primary);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:13px;color:var(--text-primary);resize:vertical;"></textarea>
+          <button class="btn btn-sm" onclick="saveWeeklyProgress('${pid}','${sk}', document.getElementById('progProgress_${pid}_${sk}').value, document.getElementById('progProblem_${pid}_${sk}').value)">保存本周</button>
         </div>` : `
         <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">🔒 只读模式：输入编辑口令后可录入本周进度</div>`;
       progressBlock = `
       <div class="progress-block">
         <div class="progress-block-title">📈 每周进度${submitted ? '<span class="weekly-badge">本周已提交 ✓</span>' : '<span class="weekly-badge" style="background:var(--alert-upcoming)">本周待更新</span>'}</div>
-        <div class="progress-bar-wrap">
-          <div class="progress-bar"><div class="progress-bar-fill" style="width:${latest}%"></div></div>
-          <span class="progress-bar-text">${latest}%</span>
-        </div>
         ${inputRow}
-        ${historyHtml ? `<div class="progress-history">${historyHtml}</div>` : ''}
+        ${historyHtml ? `<div class="progress-history" style="max-height:300px;overflow-y:auto;">${historyHtml}</div>` : ''}
       </div>`;
     }
     return `
@@ -2728,11 +2791,6 @@ function openMaterialsHub() {
 // ===== 分享 =====
 function openShareModal() {
   document.getElementById('shareOverlay').classList.add('active');
-  fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => {
-    document.getElementById('shareLanUrl').textContent = `http://${d.ip}:8765/金融交通项目看板.html`;
-  }).catch(() => {
-    document.getElementById('shareLanUrl').textContent = '无法获取，请手动查询本机 IP';
-  });
 }
 function closeShareModal() { document.getElementById('shareOverlay').classList.remove('active'); }
 
@@ -2763,6 +2821,7 @@ function openBackendModal() {
   const keyInput = document.getElementById('backendKeyInput');
   keyInput.value = ''; keyInput.style.display = 'none';
   document.getElementById('backendCodeInput').value = getEditCode();
+  document.getElementById('backendRecorderInput').value = getRecorder();
   refreshBackendBadge();
   document.getElementById('backendOverlay').classList.add('active');
 }
@@ -2779,11 +2838,14 @@ async function connectBackend() {
   // 留空则直接用内置 AnonKey
   const key = document.getElementById('backendKeyInput').value.trim() || getAnonKey();
   const code = document.getElementById('backendCodeInput').value.trim();
+  const recorder = document.getElementById('backendRecorderInput').value.trim();
   if (!key) { showToast('未找到内置 AnonKey，请点「更换」粘贴一个'); return; }
   if (!key.startsWith('eyJ')) { showToast('AnonKey 格式不对，应为 eyJ 开头的长串'); return; }
   localStorage.setItem(SB_KEY_STORE, key);
   if (code) localStorage.setItem(SB_EDIT_CODE_STORE, code);
   else localStorage.removeItem(SB_EDIT_CODE_STORE);
+  if (recorder) localStorage.setItem(SB_RECORDER_STORE, recorder);
+  else localStorage.removeItem(SB_RECORDER_STORE);
   if (!initSupabase()) { showToast('Supabase SDK 未加载，请刷新页面'); return; }
   // 连通性测试：读一条
   try {
