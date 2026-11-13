@@ -194,10 +194,52 @@ body {
 .issue-table .it-node { color: var(--text-primary); font-size: 11.5px; }
 .issue-table .it-owners { font-size: 11.5px; }
 .issue-table .it-due { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.issue-table .it-due .due-main { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .issue-table .it-due .due-tag {
   display: inline-block; margin-top: 4px; padding: 1px 6px; border-radius: 3px;
   font-size: 10px; font-family: 'Noto Sans SC', sans-serif;
 }
+/* 改期按钮：默认隐藏，悬停当前项目行时显现 */
+.issue-table .due-edit-btn {
+  padding: 0 5px; font-size: 10px; line-height: 16px; font-family: 'Noto Sans SC', sans-serif;
+  color: var(--text-muted); background: transparent; border: 1px solid var(--border);
+  border-radius: 3px; cursor: pointer; opacity: 0; transition: all 0.2s;
+}
+.issue-table tbody:hover .due-edit-btn { opacity: 1; }
+.issue-table .due-edit-btn:hover { color: var(--accent-teal-light); border-color: var(--accent-teal); }
+/* 延期信息：原到期日 + 延期天数 */
+.issue-table .it-due .due-orig {
+  margin-top: 3px; font-size: 10px; line-height: 1.5;
+  color: var(--alert-upcoming); font-family: 'Noto Sans SC', sans-serif;
+}
+.issue-table .due-edit-input {
+  width: 100%; box-sizing: border-box; padding: 4px 6px; font-size: 12px;
+  color: var(--text-primary); background: var(--bg-primary);
+  border: 1px solid var(--accent-teal); border-radius: 4px;
+}
+.issue-table .due-edit-actions { display: flex; gap: 4px; margin-top: 4px; }
+.issue-table .due-edit-actions button {
+  flex: 1; padding: 2px 0; font-size: 10px; font-family: 'Noto Sans SC', sans-serif;
+  color: var(--text-secondary); background: var(--bg-tertiary);
+  border: 1px solid var(--border); border-radius: 3px; cursor: pointer;
+}
+.issue-table .due-edit-actions .due-edit-ok { color: var(--accent-teal-light); border-color: var(--accent-teal); }
+/* 最新每周进展列 */
+.issue-table .it-week { font-size: 11.5px; }
+.issue-table .it-week .wk-head {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-muted);
+}
+.issue-table .it-week .wk-cur {
+  padding: 0 4px; border-radius: 3px; background: rgba(76,175,80,0.15);
+  color: var(--status-done); font-family: 'Noto Sans SC', sans-serif;
+}
+.issue-table .it-week .wk-miss { color: var(--alert-upcoming); font-family: 'Noto Sans SC', sans-serif; }
+.issue-table .it-week .wk-text { margin-top: 3px; color: var(--text-primary); line-height: 1.6; }
+.issue-table .it-week .wk-problem { margin-top: 2px; color: var(--alert-upcoming); font-size: 10.5px; }
+/* 长文本允许任意断行，避免窄屏横向溢出 */
+.issue-table .it-problem, .issue-table .it-solution, .issue-table .it-week,
+.issue-table .it-node, .issue-table .it-owners, .issue-table .it-due { overflow-wrap: anywhere; }
 .due-tag.overdue { background: rgba(211,47,47,0.2); color: #ff5252; }
 .due-tag.urgent { background: rgba(244,67,54,0.15); color: #ff6b6b; }
 .due-tag.upcoming { background: rgba(255,152,0,0.15); color: #ffb74d; }
@@ -207,7 +249,9 @@ body {
   .issue-table th, .issue-table td { padding-left: 6px; padding-right: 6px; }
   .issue-table .it-name { font-size: 11.5px; }
   .issue-table .it-node, .issue-table .it-owners,
-  .issue-table .it-due { font-size: 10.5px; }
+  .issue-table .it-week, .issue-table .it-due { font-size: 10.5px; }
+  /* 触屏无 hover，改期按钮常显 */
+  .issue-table .due-edit-btn { opacity: 1; }
 }
 /* 项目卡片上的交付问题摘要条 */
 .card-issue {
@@ -604,7 +648,7 @@ body {
 <div class="issue-board" id="issueBoard">
   <div class="issue-board-head" onclick="toggleIssueBoard()">
     <span class="issue-board-title">⚠ 问题汇总</span>
-    <span class="issue-board-sub">存在的问题 · 解决路径 · 关键节点分解 · 责任单位/责任人 · 完成时间点</span>
+    <span class="issue-board-sub">存在的问题 · 解决路径 · 最新每周进展 · 关键节点分解 · 责任单位/责任人 · 完成时间点（悬停可改期）</span>
     <span class="issue-board-count" id="issueBoardCount">0 项</span>
     <button class="ib-btn" onclick="event.stopPropagation();exportIssueBoard()">导出</button>
     <button class="ib-btn" onclick="event.stopPropagation();triggerIssueImport()">导入</button>
@@ -1330,14 +1374,85 @@ function issueItems(it) {
     : [{ node: '—', owner: it.owners || '—', due: it.dueDate || '' }];
   return list;
 }
-function dueCell(due) {
-  if (!due) return '未设定';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return esc(due);   // 非日期文本不做逾期计算
+// 完成时间点单元格：当前到期日 + 到期状态 + 原计划/延期天数 + 改期入口
+function dueCell(x, pid, idx) {
+  const due = x.due;
+  const btn = `<button class="due-edit-btn" title="修改完成时间点" onclick="event.stopPropagation();editIssueDue('${pid}',${idx})">改期</button>`;
+  if (!due) return `<span>未设定</span>${btn}`;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return `<span>${esc(due)}</span>${btn}`;  // 文本型时间点不参与逾期计算
   const tag = dueTag(due);
-  return `${formatDate(due)}<span class="due-tag ${tag.cls}">${tag.text}</span>`;
+  // 延期天数：仅当记录过原到期日且新日期晚于原日期时展示
+  const delay = /^\d{4}-\d{2}-\d{2}$/.test(x.origDue || '') ? daysBetween(x.origDue, due) : 0;
+  return `<div class="due-main">${formatDate(due)}${btn}</div>
+    <span class="due-tag ${tag.cls}">${tag.text}</span>
+    ${delay > 0 ? `<div class="due-orig">原 ${formatDate(x.origDue)}<br>延期 ${delay} 天</div>` : ''}`;
 }
 
-// 首页「问题汇总」：项目 / 存在的问题 / 解决路径 / 关键节点分解 / 责任单位/责任人 / 完成时间点
+// 交付阶段最新每周进展：优先取最近一条周报，无记录时回退到「当前进展」描述
+function issueWeekly(p, it) {
+  const list = p.stages?.delivery?.weeklyProgress || [];
+  if (!list.length) {
+    return it.progress ? { progress: it.progress, problem: '', fallback: true } : null;
+  }
+  return list.slice().sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : -1))[0];
+}
+function weeklyCell(p, it) {
+  const w = issueWeekly(p, it);
+  if (!w) return `<span class="wk-miss">暂无周报记录</span>`;
+  if (w.fallback) {
+    return `<div class="wk-head">当前进展<span class="wk-miss">暂无周报记录</span></div>
+      <div class="wk-text">${esc(w.progress)}</div>`;
+  }
+  const isCur = w.weekKey === getISOWeek();
+  return `<div class="wk-head">${esc(w.weekKey || '')} · ${formatDate(w.date)}
+      ${isCur ? '<span class="wk-cur">本周已更新</span>' : '<span class="wk-miss">本周未更新</span>'}</div>
+    <div class="wk-text">${esc(w.progress || '—')}</div>
+    ${w.problem ? `<div class="wk-problem">问题：${esc(w.problem)}</div>` : ''}`;
+}
+
+// 点击「改期」：把完成时间点单元格切换为日期输入
+function editIssueDue(pid, idx) {
+  if (!requireWrite('修改完成时间点')) return;
+  const cell = document.getElementById(`dueCell_${pid}_${idx}`);
+  const item = projects.find(x => x.id === pid)?.stages?.delivery?.issue?.items?.[idx];
+  if (!cell || !item) return;
+  const val = /^\d{4}-\d{2}-\d{2}$/.test(item.due || '') ? item.due : todayStr();
+  cell.innerHTML = `
+    <input type="date" class="due-edit-input" value="${val}">
+    <div class="due-edit-actions">
+      <button class="due-edit-ok" onclick="saveIssueDue('${pid}',${idx},this.closest('td').querySelector('input').value)">保存</button>
+      <button onclick="renderIssueBoard()">取消</button>
+    </div>`;
+  const inp = cell.querySelector('input');
+  inp.focus();
+  inp.onkeydown = e => { if (e.key === 'Enter') saveIssueDue(pid, idx, inp.value); };
+}
+
+// 保存改期：首次改期留存原到期日，用于计算并展示延期天数
+function saveIssueDue(pid, idx, val) {
+  const p = projects.find(x => x.id === pid);
+  const it = p?.stages?.delivery?.issue;
+  const item = it?.items?.[idx];
+  if (!item) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(val || '')) { showToast('请选择有效日期'); return; }
+  if (val === item.due) { renderIssueBoard(); return; }
+  if (!item.origDue && /^\d{4}-\d{2}-\d{2}$/.test(item.due || '')) item.origDue = item.due;
+  item.due = val;
+  // 项目级到期日与交付阶段日期同步为最早有效节点，保证提醒与问题汇总口径一致
+  const dates = (it.items || []).map(x => x.due).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  if (dates.length) {
+    it.dueDate = dates[0];
+    if (p.stages.delivery) p.stages.delivery.deliverDate = dates[0];
+  }
+  // 同步常量，避免 renderAll 时被 ensureFocusProjects 覆盖
+  const fp = FOCUS_PROJECTS.find(f => (f.matchId || f.id) === p.id);
+  if (fp) fp.issue = it;
+  saveData(); renderAll();
+  const delay = /^\d{4}-\d{2}-\d{2}$/.test(item.origDue || '') ? daysBetween(item.origDue, val) : 0;
+  showToast(delay > 0 ? `已改期至 ${formatDate(val)}（延期 ${delay} 天）` : `已改期至 ${formatDate(val)}`);
+}
+
+// 首页「问题汇总」：项目 / 存在的问题 / 解决路径 / 最新每周进展 / 关键节点分解 / 责任单位/责任人 / 完成时间点
 // 按「关键节点分解」拆行，项目级字段用 rowspan 合并
 function renderIssueBoard() {
   const el = document.getElementById('issueBoardBody');
@@ -1352,12 +1467,13 @@ function renderIssueBoard() {
   el.innerHTML = `
     <table class="issue-table">
       <thead><tr>
-        <th style="width:12%;">项目</th>
-        <th style="width:17%;">存在的问题</th>
-        <th style="width:20%;">解决路径</th>
-        <th style="width:17%;">关键节点分解</th>
+        <th style="width:11%;">项目</th>
+        <th style="width:15%;">存在的问题</th>
+        <th style="width:17%;">解决路径</th>
+        <th style="width:14%;">最新每周进展</th>
+        <th style="width:14%;">关键节点分解</th>
         <th style="width:13%;">责任单位/责任人</th>
-        <th style="width:13%;">完成时间点</th>
+        <th style="width:16%;">完成时间点</th>
       </tr></thead>
       ${rows.map(p => {
         const it = p.stages.delivery.issue;
@@ -1369,10 +1485,11 @@ function renderIssueBoard() {
             ${i === 0 ? `
             <td rowspan="${span}"><div class="it-name">${esc(p.name)}<span class="it-stage">交付阶段</span></div></td>
             <td rowspan="${span}" class="it-problem">${esc(it.problem || '—')}</td>
-            <td rowspan="${span}" class="it-solution">${esc(it.solution || '—')}</td>` : ''}
+            <td rowspan="${span}" class="it-solution">${esc(it.solution || '—')}</td>
+            <td rowspan="${span}" class="it-week">${weeklyCell(p, it)}</td>` : ''}
             <td class="it-node">${esc(x.node || '—')}</td>
             <td class="it-owners">${esc(x.owner || '—')}</td>
-            <td class="it-due">${dueCell(x.due)}</td>
+            <td class="it-due" id="dueCell_${p.id}_${i}">${dueCell(x, p.id, i)}</td>
           </tr>`).join('')}
         </tbody>`;
       }).join('')}
@@ -1416,12 +1533,13 @@ function exportIssueBoard() {
         '关键节点分解': x.node || '',
         '责任单位/责任人': x.owner || '',
         '完成时间点': x.due || '',
-        '关键节点': i === 0 ? (it.nodes || '') : ''
+        '关键节点': i === 0 ? (it.nodes || '') : '',
+        '原定完成时间': x.origDue || ''   // 改期前的原计划，用于还原延期天数
       });
     });
   });
   const ws = XLSX.utils.json_to_sheet(data);
-  ws['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 36 }, { wch: 40 }, { wch: 40 }, { wch: 22 }, { wch: 16 }, { wch: 42 }];
+  ws['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 36 }, { wch: 40 }, { wch: 40 }, { wch: 22 }, { wch: 16 }, { wch: 42 }, { wch: 16 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '问题汇总');
   XLSX.writeFile(wb, `问题汇总_${todayStr()}.xlsx`);
@@ -1451,7 +1569,8 @@ function importIssueBoard(e) {
         const node = String(r['关键节点分解'] || '').trim();
         const owner = String(r['责任单位/责任人'] ?? r['责任人'] ?? '').trim();
         const due = normalizeIssueDate(r['完成时间点']);
-        if (node || owner || due) cur.items.push({ node, owner, due });
+        const origDue = normalizeIssueDate(r['原定完成时间']);
+        if (node || owner || due) cur.items.push({ node, owner, due, ...(origDue ? { origDue } : {}) });
       });
       let updated = 0; const missed = [];
       groups.forEach(g => {
