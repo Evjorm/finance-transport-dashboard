@@ -266,6 +266,28 @@ body {
 .card-issue .ci-meta {
   display: flex; gap: 12px; margin-top: 5px; font-size: 10.5px; color: var(--text-muted);
 }
+/* 项目卡片上的最新每周进度摘要条 */
+.card-weekly {
+  margin-top: 10px; padding: 8px 10px; border-radius: 6px;
+  background: var(--bg-primary); border: 1px solid var(--border);
+  font-size: 11px; line-height: 1.6; color: var(--text-secondary);
+}
+.card-weekly .cw-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.card-weekly .cw-title { font-weight: 600; color: var(--accent-teal); }
+.card-weekly .cw-week { margin-left: auto; font-size: 10.5px; color: var(--text-muted); }
+.card-weekly .cw-badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 3px;
+  background: rgba(255,152,0,0.12); color: var(--alert-upcoming);
+}
+.card-weekly .cw-text {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; color: var(--text-primary);
+}
+.card-weekly .cw-problem {
+  margin-top: 3px; color: var(--alert-upcoming);
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-weekly .cw-meta { margin-top: 4px; font-size: 10.5px; color: var(--text-muted); }
 /* 详情页交付阶段问题闭环卡 */
 .issue-block {
   margin-top: 12px; padding: 12px 14px; border-radius: 8px;
@@ -2801,6 +2823,15 @@ function renderDashboard() {
     }).join('');
     // 交付阶段存在问题 → 卡片上显示摘要
     const dlIssue = getStageStatus(p, 'delivery') === 'progress' ? p.stages?.delivery?.issue : null;
+    // 最新每周进度：汇总所有阶段的周记录，按周次（同周次按日期）取最新一条
+    const weeklyAll = [];
+    STAGE_CONFIG.forEach(s => {
+      (p.stages?.[s.key]?.weeklyProgress || []).forEach(r => weeklyAll.push({ ...r, stageName: s.name }));
+    });
+    weeklyAll.sort((a, b) => (b.weekKey || '').localeCompare(a.weekKey || '') || (b.date || '').localeCompare(a.date || ''));
+    const latestWeekly = weeklyAll[0] || null;
+    // 当前阶段处于进行中、但本周还没提交 → 卡片上提示待更新
+    const weeklyPending = currentStatus === 'progress' && (!latestWeekly || latestWeekly.weekKey !== getISOWeek());
     return `
       <div class="project-card" style="animation:fadeIn 0.3s ease" onclick="openDetail('${p.id}')">
         <div class="card-header">
@@ -2845,6 +2876,17 @@ function renderDashboard() {
             <span>👤 ${esc(dlIssue.owners.split('｜')[0])}</span>
             <span>⏱ ${formatDate(dlIssue.dueDate)}</span>
           </div>
+        </div>` : ''}
+        ${latestWeekly ? `
+        <div class="card-weekly">
+          <div class="cw-head">
+            <span class="cw-title">📈 最新周进度</span>
+            ${weeklyPending ? '<span class="cw-badge">本周待更新</span>' : ''}
+            <span class="cw-week">${esc(latestWeekly.weekKey)} · ${esc(latestWeekly.date)}</span>
+          </div>
+          <div class="cw-text">${esc(latestWeekly.progress || '—')}</div>
+          ${latestWeekly.problem ? `<div class="cw-problem">问题：${esc(latestWeekly.problem)}</div>` : ''}
+          <div class="cw-meta">${esc(latestWeekly.stageName)} · 记录人 ${esc(latestWeekly.recorder || '—')}</div>
         </div>` : ''}
       </div>`;
   }).join('');
