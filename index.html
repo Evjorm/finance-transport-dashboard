@@ -237,6 +237,18 @@ body {
 .issue-table .it-week .wk-miss { color: var(--alert-upcoming); font-family: 'Noto Sans SC', sans-serif; }
 .issue-table .it-week .wk-text { margin-top: 3px; color: var(--text-primary); line-height: 1.6; }
 .issue-table .it-week .wk-problem { margin-top: 2px; color: var(--alert-upcoming); font-size: 10.5px; }
+/* 关键节点完成勾选 */
+.issue-table .node-check {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; margin-right: 5px; padding: 0;
+  font-size: 11px; line-height: 1; vertical-align: -2px; flex-shrink: 0;
+  color: #fff; background: transparent; border: 1px solid var(--border-light);
+  border-radius: 3px; cursor: pointer; transition: all 0.15s;
+}
+.issue-table .node-check:hover { border-color: var(--status-done); }
+.issue-table .node-check.checked { background: var(--status-done); border-color: var(--status-done); }
+.issue-table .it-node.node-done .node-text { color: var(--text-muted); text-decoration: line-through; }
+.issue-table .due-tag.done { color: var(--status-done); background: rgba(76,175,80,0.15); }
 /* 长文本允许任意断行，避免窄屏横向溢出 */
 .issue-table .it-problem, .issue-table .it-solution, .issue-table .it-week,
 .issue-table .it-node, .issue-table .it-owners, .issue-table .it-due { overflow-wrap: anywhere; }
@@ -670,7 +682,7 @@ body {
 <div class="issue-board" id="issueBoard">
   <div class="issue-board-head" onclick="toggleIssueBoard()">
     <span class="issue-board-title">⚠ 问题汇总</span>
-    <span class="issue-board-sub">存在的问题 · 解决路径 · 最新每周进展 · 关键节点分解 · 责任单位/责任人 · 完成时间点（悬停可改期）</span>
+    <span class="issue-board-sub">存在的问题 · 解决路径 · 最新每周进展 · 关键节点分解（☐ 勾选完成）· 责任单位/责任人 · 完成时间点（悬停可改期）</span>
     <span class="issue-board-count" id="issueBoardCount">0 项</span>
     <button class="ib-btn" onclick="event.stopPropagation();exportIssueBoard()">导出</button>
     <button class="ib-btn" onclick="event.stopPropagation();triggerIssueImport()">导入</button>
@@ -1360,7 +1372,7 @@ function ensureFocusProjects() {
       exist.stages = exist.stages || {};
       const d = exist.stages.delivery = exist.stages.delivery || {};
       d.started = true;
-      d.issue = fp.issue;                       // 以跟踪表最新情况覆盖
+      if (!d.issue) d.issue = fp.issue;         // 仅首次播种：已有问题数据（改期/节点状态）不覆盖
       if (!d.deliverDate) d.deliverDate = fp.issue.dueDate;
       return;
     }
@@ -1399,6 +1411,11 @@ function issueItems(it) {
 // 完成时间点单元格：当前到期日 + 到期状态 + 原计划/延期天数 + 改期入口
 function dueCell(x, pid, idx) {
   const due = x.due;
+  // 已完成节点：绿色完成标签 + 完成日期，不再计算逾期、不再提供改期
+  if (x.done) {
+    return `<div class="due-main">${due ? formatDate(due) : '—'}</div>
+      <span class="due-tag done">已完成${/^\d{4}-\d{2}-\d{2}$/.test(x.doneDate || '') ? ' ' + formatDate(x.doneDate).slice(5) : ''}</span>`;
+  }
   const btn = `<button class="due-edit-btn" title="修改完成时间点" onclick="event.stopPropagation();editIssueDue('${pid}',${idx})">改期</button>`;
   if (!due) return `<span>未设定</span>${btn}`;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return `<span>${esc(due)}</span>${btn}`;  // 文本型时间点不参与逾期计算
@@ -1474,6 +1491,23 @@ function saveIssueDue(pid, idx, val) {
   showToast(delay > 0 ? `已改期至 ${formatDate(val)}（延期 ${delay} 天）` : `已改期至 ${formatDate(val)}`);
 }
 
+// 标记/取消关键节点完成：记录完成日期，持久化到本地与云端
+function toggleIssueNode(pid, idx) {
+  if (!requireWrite('标记节点完成')) return;
+  const p = projects.find(x => x.id === pid);
+  const it = p?.stages?.delivery?.issue;
+  const item = it?.items?.[idx];
+  if (!item) return;
+  item.done = !item.done;
+  if (item.done) item.doneDate = todayStr();
+  else delete item.doneDate;
+  // 同步常量，保持同一会话内数据一致
+  const fp = FOCUS_PROJECTS.find(f => (f.matchId || f.id) === p.id);
+  if (fp) fp.issue = it;
+  saveData(); renderAll();
+  showToast(item.done ? '节点已标记完成' : '已取消完成标记');
+}
+
 // 首页「问题汇总」：项目 / 存在的问题 / 解决路径 / 最新每周进展 / 关键节点分解 / 责任单位/责任人 / 完成时间点
 // 按「关键节点分解」拆行，项目级字段用 rowspan 合并
 function renderIssueBoard() {
@@ -1509,7 +1543,7 @@ function renderIssueBoard() {
             <td rowspan="${span}" class="it-problem">${esc(it.problem || '—')}</td>
             <td rowspan="${span}" class="it-solution">${esc(it.solution || '—')}</td>
             <td rowspan="${span}" class="it-week">${weeklyCell(p, it)}</td>` : ''}
-            <td class="it-node">${esc(x.node || '—')}</td>
+            <td class="it-node ${x.done ? 'node-done' : ''}"><button class="node-check ${x.done ? 'checked' : ''}" title="${x.done ? '取消完成标记' : '标记节点完成'}" onclick="event.stopPropagation();toggleIssueNode('${p.id}',${i})">${x.done ? '✓' : ''}</button><span class="node-text">${esc(x.node || '—')}</span></td>
             <td class="it-owners">${esc(x.owner || '—')}</td>
             <td class="it-due" id="dueCell_${p.id}_${i}">${dueCell(x, p.id, i)}</td>
           </tr>`).join('')}
@@ -1556,12 +1590,14 @@ function exportIssueBoard() {
         '责任单位/责任人': x.owner || '',
         '完成时间点': x.due || '',
         '关键节点': i === 0 ? (it.nodes || '') : '',
-        '原定完成时间': x.origDue || ''   // 改期前的原计划，用于还原延期天数
+        '原定完成时间': x.origDue || '',  // 改期前的原计划，用于还原延期天数
+        '节点状态': x.done ? '已完成' : '',
+        '完成日期': x.doneDate || ''
       });
     });
   });
   const ws = XLSX.utils.json_to_sheet(data);
-  ws['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 36 }, { wch: 40 }, { wch: 40 }, { wch: 22 }, { wch: 16 }, { wch: 42 }, { wch: 16 }];
+  ws['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 36 }, { wch: 40 }, { wch: 40 }, { wch: 22 }, { wch: 16 }, { wch: 42 }, { wch: 16 }, { wch: 10 }, { wch: 14 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '问题汇总');
   XLSX.writeFile(wb, `问题汇总_${todayStr()}.xlsx`);
@@ -1592,7 +1628,9 @@ function importIssueBoard(e) {
         const owner = String(r['责任单位/责任人'] ?? r['责任人'] ?? '').trim();
         const due = normalizeIssueDate(r['完成时间点']);
         const origDue = normalizeIssueDate(r['原定完成时间']);
-        if (node || owner || due) cur.items.push({ node, owner, due, ...(origDue ? { origDue } : {}) });
+        const done = String(r['节点状态'] || '').trim() === '已完成';
+        const doneDate = normalizeIssueDate(r['完成日期']);
+        if (node || owner || due) cur.items.push({ node, owner, due, ...(origDue ? { origDue } : {}), ...(done ? { done: true, doneDate: doneDate || todayStr() } : {}) });
       });
       let updated = 0; const missed = [];
       groups.forEach(g => {
@@ -2294,7 +2332,8 @@ function rowToProject(r) {
       },
       delivery: {
         deliverDate: r.deliver_date,
-        completed: !!r.deliver_completed, started: !!r.deliver_started
+        completed: !!r.deliver_completed, started: !!r.deliver_started,
+        issue: r.issue || undefined           // 问题闭环 jsonb（含节点改期/完成状态），无此列时为空
       },
       payment: {
         paymentDate: r.payment_date,
@@ -2314,6 +2353,12 @@ async function sbUpsertProject(p) {
     const row = projectToRow(p);
     const { error } = await _sb.rpc('save_project', { p_row: row, p_code: code });
     if (error) console.warn('[Supabase] project 保存失败:', error.message);
+    // 问题闭环（节点到期日/改期/完成状态）走独立 RPC，与既有 save_project 解耦
+    const issue = p.stages?.delivery?.issue;
+    if (issue) {
+      const { error: ie } = await _sb.rpc('save_project_issue', { p_id: p.id, p_issue: issue, p_code: code });
+      if (ie) console.warn('[Supabase] issue 保存失败:', ie.message);
+    }
   } catch (e) { console.warn('[Supabase] project 保存异常:', e.message); }
 }
 async function sbUpsertWeekly(pid, stageKey, weekKey, progress, problem, recorder, progressDate) {
@@ -2406,6 +2451,16 @@ function loadData() {
   if (sbEnabled()) {
     sbLoadAll().then(remoteProjects => {
       if (remoteProjects && remoteProjects.length) {
+        // 云端尚无 issue 数据时保留本地问题闭环，防止改期/节点状态被覆盖丢失
+        const localMap = Object.fromEntries(projects.map(p => [p.id, p]));
+        remoteProjects.forEach(rp => {
+          const li = localMap[rp.id]?.stages?.delivery?.issue;
+          if (li && !rp.stages?.delivery?.issue) {
+            rp.stages = rp.stages || {};
+            rp.stages.delivery = rp.stages.delivery || {};
+            rp.stages.delivery.issue = li;
+          }
+        });
         // 用 Supabase 数据覆盖（以数据库为准）
         projects = remoteProjects;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
@@ -2666,8 +2721,10 @@ function calcReminders() {
       if (d <= 0) reminders.push({ type: 'overdue', text: `${p.name} - 交付资料准备已逾期`, id: p.id });
       else if (d <= 3) reminders.push({ type: 'upcoming', text: `${p.name} - 交付资料准备（${d}天后）`, id: p.id });
     }
-    // 交付时间
-    if (s.delivery?.deliverDate && !s.delivery?.completed) {
+    // 交付时间（关键节点全部标记完成后不再提醒）
+    const dlItems = s.delivery?.issue?.items || [];
+    const allNodesDone = dlItems.length > 0 && dlItems.every(x => x.done);
+    if (s.delivery?.deliverDate && !s.delivery?.completed && !allNodesDone) {
       const d = daysBetween(today, s.delivery.deliverDate);
       if (d <= 0) reminders.push({ type: 'overdue', text: `${p.name} - 交付已逾期`, id: p.id });
       else if (d <= 3) reminders.push({ type: 'upcoming', text: `${p.name} - 交付（${d}天后）`, id: p.id });
