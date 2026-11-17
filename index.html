@@ -650,7 +650,7 @@ body {
   <div class="topbar-right">
     <div class="topbar-date" id="topbarClock">14:03:05</div>
     <div class="version-badge" title="版本标记，不可更改">v2.0 · <span class="vb-owner">金融交通事业部</span></div>
-    <div class="save-indicator saving" id="saveIndicator">保存中...</div>
+    <div class="save-indicator" id="saveIndicator">已就绪</div>
     <button class="btn btn-sm" onclick="openBackendModal()" id="backendBtn" title="配置云端后端，实现多人实时协同">🔌 后端 只读</button>
     <button class="btn btn-sm" onclick="openShareModal()">🔗 分享</button>
     <button class="btn btn-sm" onclick="openMaterialsHub()">📦 物料中心</button>
@@ -2666,8 +2666,8 @@ function importData(e) {
   if (isExcel) reader.readAsArrayBuffer(file); else reader.readAsText(file);
   e.target.value = '';
 }
-window.addEventListener('beforeunload', () => saveData());
-setInterval(saveData, 60000);
+window.addEventListener('beforeunload', () => persistLocal());
+// 说明：不再定时全量回写云端，避免每分钟把旧副本整体推一遍
 
 // ===== 阶段状态计算 =====
 // ===== 每周进度工具 =====
@@ -3607,6 +3607,7 @@ function init() {
   refreshBackendBadge();
   loadData();
   renderAll();
+  setSaveState(sbEnabled() ? '已就绪' : '仅本机');   // 初始化不处于保存中，避免指示器一直卡在"保存中"
 }
 init();
 </script>
