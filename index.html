@@ -1486,7 +1486,8 @@ function saveIssueDue(pid, idx, val) {
   // 同步常量，避免 renderAll 时被 ensureFocusProjects 覆盖
   const fp = FOCUS_PROJECTS.find(f => (f.matchId || f.id) === p.id);
   if (fp) fp.issue = it;
-  saveData(); renderAll();
+  touchIssue(it);            // 打上修改时间，用于和云端比较新旧
+  saveIssueData(p.id); renderAll();
   const delay = /^\d{4}-\d{2}-\d{2}$/.test(item.origDue || '') ? daysBetween(item.origDue, val) : 0;
   showToast(delay > 0 ? `已改期至 ${formatDate(val)}（延期 ${delay} 天）` : `已改期至 ${formatDate(val)}`);
 }
@@ -1504,7 +1505,8 @@ function toggleIssueNode(pid, idx) {
   // 同步常量，保持同一会话内数据一致
   const fp = FOCUS_PROJECTS.find(f => (f.matchId || f.id) === p.id);
   if (fp) fp.issue = it;
-  saveData(); renderAll();
+  touchIssue(it);            // 打上修改时间，用于和云端比较新旧
+  saveIssueData(p.id); renderAll();
   showToast(item.done ? '节点已标记完成' : '已取消完成标记');
 }
 
@@ -1632,7 +1634,7 @@ function importIssueBoard(e) {
         const doneDate = normalizeIssueDate(r['完成日期']);
         if (node || owner || due) cur.items.push({ node, owner, due, ...(origDue ? { origDue } : {}), ...(done ? { done: true, doneDate: doneDate || todayStr() } : {}) });
       });
-      let updated = 0; const missed = [];
+      let updated = 0; const missed = []; const updatedIds = [];
       groups.forEach(g => {
         const p = projects.find(x => x.id === g.id) || projects.find(x => x.name === g.name);
         if (!p) { if (g.name) missed.push(g.name); return; }
@@ -1652,9 +1654,11 @@ function importIssueBoard(e) {
         // 同步常量，避免 renderAll 时被 ensureFocusProjects 覆盖
         const fp = FOCUS_PROJECTS.find(f => (f.matchId || f.id) === p.id);
         if (fp) fp.issue = { ...fp.issue, ...d.issue };
+        touchIssue(d.issue);
+        updatedIds.push(p.id);
         updated++;
       });
-      if (updated) { saveData(); renderAll(); }
+      if (updated) { updatedIds.forEach(id => saveIssueData(id)); renderAll(); }
       showToast(`已导入 ${updated} 个项目${missed.length ? `，${missed.length} 个未匹配到项目` : ''}`);
     } catch (err) { showToast('解析失败：' + err.message); }
   };
@@ -2346,21 +2350,37 @@ function rowToProject(r) {
 // === Supabase 异步同步（失败静默，不阻塞 localStorage 主链路） ===
 // 写入必须走服务端 RPC（数据库已收回直接写权限），口令由函数校验
 async function sbUpsertProject(p) {
-  if (!sbEnabled()) return;
+  if (!sbEnabled()) return true;
   const code = getEditCode();
-  if (!code) return; // 未填口令 → 只落本地，不向云端发起写请求
+  if (!code) return true; // 未填口令 → 只落本地，不向云端发起写请求
   try {
     const row = projectToRow(p);
     const { error } = await _sb.rpc('save_project', { p_row: row, p_code: code });
-    if (error) console.warn('[Supabase] project 保存失败:', error.message);
-    // 问题闭环（节点到期日/改期/完成状态）走独立 RPC，与既有 save_project 解耦
+    if (error) { console.warn('[Supabase] project 保存失败:', error.message); return false; }
+    return true;
+  } catch (e) { console.warn('[Supabase] project 保存异常:', e.message); return false; }
+}
+
+// 问题闭环写入：issue 单独一列 + 同步该项目的交付日期，只针对当前项目
+async function sbSaveIssue(p) {
+  if (!sbEnabled()) return true;
+  const code = getEditCode();
+  if (!code) return true;
+  try {
     const issue = p.stages?.delivery?.issue;
     if (issue) {
       const { error: ie } = await _sb.rpc('save_project_issue', { p_id: p.id, p_issue: issue, p_code: code });
-      if (ie) console.warn('[Supabase] issue 保存失败:', ie.message);
+      if (ie) { console.warn('[Supabase] issue 保存失败:', ie.message); return false; }
     }
-  } catch (e) { console.warn('[Supabase] project 保存异常:', e.message); }
+    // 交付日期随节点最早到期日变化，同步项目行保证提醒口径一致
+    const { error } = await _sb.rpc('save_project', { p_row: projectToRow(p), p_code: code });
+    if (error) { console.warn('[Supabase] project 保存失败:', error.message); return false; }
+    return true;
+  } catch (e) { console.warn('[Supabase] issue 保存异常:', e.message); return false; }
 }
+
+// 问题闭环的修改时间戳：加载时用它判断本地与云端哪份更新，避免旧数据覆盖新改动
+function touchIssue(it) { if (it) it.updatedAt = Date.now(); }
 async function sbUpsertWeekly(pid, stageKey, weekKey, progress, problem, recorder, progressDate) {
   if (!sbEnabled()) return;
   const code = getEditCode();
@@ -2394,16 +2414,39 @@ function daysBetween(a, b) { return Math.ceil((new Date(b) - new Date(a)) / 8640
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 
 // ===== 数据持久化：localStorage 主链路 + Supabase 异步备份 =====
-function saveData() {
-  const ind = document.getElementById('saveIndicator');
-  ind.textContent = '保存中...'; ind.classList.add('saving');
+function persistLocal() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
   localStorage.setItem(STORAGE_KEY + '_backup', JSON.stringify(projects));
-  setTimeout(() => { ind.textContent = '已保存'; ind.classList.remove('saving'); }, 500);
-  // Supabase 异步同步（每条项目一条 upsert，失败静默不阻塞）
-  if (sbEnabled()) {
-    projects.forEach(p => sbUpsertProject(p));
-  }
+}
+
+function saveData(onlyId) {
+  persistLocal();
+  // 未连云端或未填口令 → 仅本机保存
+  if (!sbEnabled() || !getEditCode()) { setSaveState('已保存'); return; }
+  // 真实等待云端写入结束再提示，避免"假保存"后刷新丢改动
+  setSaveState('保存中...', true);
+  const targets = onlyId ? projects.filter(p => p.id === onlyId) : projects;
+  Promise.all(targets.map(p => sbUpsertProject(p))).then(oks => {
+    setSaveState(oks.every(Boolean) ? '已保存' : '部分未同步');
+  });
+}
+
+// 问题闭环单独保存：只写当前项目（issue + 该行），不影响其他项目的问题数据
+function saveIssueData(pid) {
+  persistLocal();
+  const p = projects.find(x => x.id === pid);
+  if (!p) return;
+  if (!sbEnabled() || !getEditCode()) { setSaveState('已保存'); return; }
+  setSaveState('保存中...', true);
+  sbSaveIssue(p).then(ok => setSaveState(ok ? '已保存' : '部分未同步'));
+}
+
+// 保存状态提示（saving=true 时显示橙色的保存中）
+function setSaveState(text, saving) {
+  const ind = document.getElementById('saveIndicator');
+  if (!ind) return;
+  ind.textContent = text;
+  ind.classList.toggle('saving', !!saving);
 }
 
 // 从 Supabase 拉取全部数据（含 weekly_progress 关联表）
@@ -2451,21 +2494,29 @@ function loadData() {
   if (sbEnabled()) {
     sbLoadAll().then(remoteProjects => {
       if (remoteProjects && remoteProjects.length) {
-        // 云端尚无 issue 数据时保留本地问题闭环，防止改期/节点状态被覆盖丢失
+        // 按修改时间取较新的一份：上次保存若被刷新打断，本地改动不会被云端旧值覆盖
         const localMap = Object.fromEntries(projects.map(p => [p.id, p]));
+        const needPush = [];   // 本地较新但云端落后的项目，稍后自动补写
         remoteProjects.forEach(rp => {
           const li = localMap[rp.id]?.stages?.delivery?.issue;
-          if (li && !rp.stages?.delivery?.issue) {
-            rp.stages = rp.stages || {};
-            rp.stages.delivery = rp.stages.delivery || {};
-            rp.stages.delivery.issue = li;
-          }
+          if (!li) return;
+          const ri = rp.stages?.delivery?.issue;
+          const localNewer = !ri || (li.updatedAt || 0) > (ri.updatedAt || 0);
+          if (!localNewer) return;
+          rp.stages = rp.stages || {};
+          rp.stages.delivery = rp.stages.delivery || {};
+          rp.stages.delivery.issue = li;
+          if (li.updatedAt) needPush.push(rp);
         });
         // 用 Supabase 数据覆盖（以数据库为准）
         projects = remoteProjects;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
         localStorage.setItem(STORAGE_KEY + '_backup', JSON.stringify(projects));
         renderAll();
+        // 把上次没来得及上云的改动补写一次，保证换设备也能看到
+        if (needPush.length && getEditCode()) {
+          needPush.forEach(p => sbSaveIssue(p));
+        }
       }
     }).catch(err => console.warn('[Supabase] 拉取失败，继续用 localStorage:', err.message));
   }
